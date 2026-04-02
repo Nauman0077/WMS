@@ -1,2 +1,3 @@
 history_id,order_id,event_type,event_message,changed_by,created_at
 0873f787-f6c9-4571-9bd2-e8fe774a2ffa,aa7cfe15-712b-4542-acd9-99f8cca526bb,created,Order created,seed,2026-04-02T15:30:35.878Z
+bcdd2241-3de4-4470-b380-0f64018fff0d,c00d8019-635f-4b07-bbc1-0d396656474b,created,Order created with 2 line item(s).,admin,2026-04-02T18:47:37.897Z

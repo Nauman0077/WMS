@@ -1,2 +1,4 @@
 line_id,order_id,sku_id,sku_code,product_name,quantity,quantity_shipped,unit_price,line_total,created_at,updated_at
 37f25142-ee7f-47c4-a313-32738ac59113,aa7cfe15-712b-4542-acd9-99f8cca526bb,e6d06f69-5e91-44ae-95e3-88a61ae0d774,TestSKU,Testing SKU,1,0,49.99,49.99,2026-04-02T15:30:35.878Z,2026-04-02T15:30:35.878Z
+43cde5cb-72c9-44aa-a683-701494993195,c00d8019-635f-4b07-bbc1-0d396656474b,e6d06f69-5e91-44ae-95e3-88a61ae0d774,TestSKU,Testing SKU,1,0,0,0,2026-04-02T18:47:37.897Z,2026-04-02T18:47:37.897Z
+271ff6a9-9ad5-4e63-b0cb-bd9927d23c0f,c00d8019-635f-4b07-bbc1-0d396656474b,518002659,ALLB1,Wheel Without Lock for Carry-On - Mini Cherry Red,1,0,0,0,2026-04-02T18:47:37.897Z,2026-04-02T18:47:37.897Z
