@@ -1,0 +1,2 @@
+user_id,username,email,password_hash,password_salt,full_name,role,is_active,created_at,updated_at,last_login_at
+51a14602-4a54-4fe0-b8c3-9db9ece9afeb,admin,admin@local.wms,feb01b62355becd8fc04d2b6e78bac593e25c48af3d6f713f24ebb0095fefec01f4d6bab39723d73c74fbc3238c5eb8c93dade2ec664af5c6520ff4776d51a91,7ee61cd6-7a79-418d-a5c9-defe217a9aaa,System Admin,admin,true,2026-03-12T17:44:57.572Z,2026-04-02T13:58:24.613Z,2026-04-02T13:58:24.612Z

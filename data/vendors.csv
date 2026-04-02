@@ -1,0 +1,3 @@
+vendor_id,vendor_code,vendor_name,account_number,contact_name,contact_email,contact_phone,shipping_address_1,shipping_address_2,shipping_city,shipping_state,shipping_postal_code,shipping_country,notes_internal,created_at,updated_at
+5a98fc55-74a5-4e09-82fa-78d68db1d975,ASAD,Asad,2211,Asad,asad@gmail.com,1122,Islamabad,,Islamabad,Islamabad,46000,Pakistan,None,2026-04-02T14:02:46.076Z,2026-04-02T14:02:46.076Z
+VENDOR-ABC,ABC,Vendor ABC,ACC-ABC-001,Alex Buyer,sales@vendorabc.example,+1 702 555 0100,100 Industrial Ave,Dock 4,Las Vegas,NV,89101,United States,Default seeded vendor,2026-03-12T17:44:58.064Z,2026-03-13T21:48:21.233Z
