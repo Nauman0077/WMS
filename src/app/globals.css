@@ -81,6 +81,7 @@ button {
   backdrop-filter: blur(12px);
   box-shadow: var(--shadow);
   padding: 12px 16px;
+  overflow: visible;
 }
 
 .brand-cluster {
@@ -105,6 +106,14 @@ button {
 
 .top-nav {
   min-width: 0;
+  overflow: visible;
+}
+
+.top-nav-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
 }
 
 .top-nav-list {
@@ -113,8 +122,19 @@ button {
   align-items: center;
   gap: 8px;
   overflow-x: auto;
+  overflow-y: hidden;
   scrollbar-width: thin;
   padding-bottom: 2px;
+  flex: 1;
+  min-width: max-content;
+}
+
+.top-nav-list > li {
+  flex: 0 0 auto;
+}
+
+.account-nav-item {
+  flex: 0 0 auto;
 }
 
 .nav-item {

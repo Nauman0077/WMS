@@ -24,7 +24,7 @@ export function WmsShell({ title, children, actions }: WmsShellProps) {
   const pathname = usePathname()
   const router = useRouter()
   const [menuOpen, setMenuOpen] = useState(false)
-  const menuRef = useRef<HTMLLIElement | null>(null)
+  const menuRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
     function handleClick(event: MouseEvent) {
@@ -38,6 +38,15 @@ export function WmsShell({ title, children, actions }: WmsShellProps) {
 
     document.addEventListener("mousedown", handleClick)
     return () => document.removeEventListener("mousedown", handleClick)
+  }, [])
+
+  useEffect(() => {
+    function handleScroll() {
+      setMenuOpen(false)
+    }
+
+    window.addEventListener("scroll", handleScroll, { passive: true })
+    return () => window.removeEventListener("scroll", handleScroll)
   }, [])
 
   async function handleLogout() {
@@ -55,16 +64,18 @@ export function WmsShell({ title, children, actions }: WmsShellProps) {
         </div>
 
         <nav className="top-nav">
-          <ul className="top-nav-list">
-            {TOP_LINKS.map((link) => (
-              <li key={link.key}>
-                <Link className={pathname?.startsWith(link.href) ? "nav-item active" : "nav-item"} href={link.href}>
-                  {link.label}
-                </Link>
-              </li>
-            ))}
+          <div className="top-nav-row">
+            <ul className="top-nav-list">
+              {TOP_LINKS.map((link) => (
+                <li key={link.key}>
+                  <Link className={pathname?.startsWith(link.href) ? "nav-item active" : "nav-item"} href={link.href}>
+                    {link.label}
+                  </Link>
+                </li>
+              ))}
+            </ul>
 
-            <li ref={menuRef} className="account-menu-wrap">
+            <div ref={menuRef} className="account-menu-wrap account-nav-item">
               <button className={menuOpen ? "nav-item active" : "nav-item"} type="button" onClick={() => setMenuOpen((v) => !v)}>
                 My Account
               </button>
@@ -85,8 +96,8 @@ export function WmsShell({ title, children, actions }: WmsShellProps) {
                   </button>
                 </div>
               ) : null}
-            </li>
-          </ul>
+            </div>
+          </div>
         </nav>
 
         <div className="topbar-meta">
