@@ -913,6 +913,209 @@ button {
   padding-bottom: 14px;
 }
 
+.ops-dashboard {
+  display: grid;
+  gap: 12px;
+}
+
+.home-hero-panel {
+  overflow: hidden;
+}
+
+.hero-metrics-grid {
+  padding: 12px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.hero-metric-card {
+  border: 1px solid rgba(78, 165, 220, 0.4);
+  border-radius: 16px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(241, 249, 255, 0.98));
+  padding: 16px;
+  display: grid;
+  gap: 6px;
+  box-shadow: 0 12px 28px rgba(20, 89, 136, 0.08);
+  animation: revealUp 360ms ease both;
+}
+
+.hero-metric-card span {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: #4f7396;
+}
+
+.hero-metric-card strong {
+  font-family: var(--font-display-stack);
+  color: #174b74;
+  font-size: 28px;
+}
+
+.hero-metric-card small {
+  color: #5c81a6;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.pulse-card {
+  background: linear-gradient(135deg, rgba(236, 249, 255, 0.98), rgba(223, 247, 240, 0.98));
+}
+
+.danger-tint {
+  background: linear-gradient(135deg, rgba(255, 244, 244, 0.98), rgba(255, 250, 243, 0.98));
+}
+
+.home-analytics-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.insight-card,
+.spotlight-card {
+  overflow: hidden;
+}
+
+.chart-card-body {
+  padding: 14px;
+  display: grid;
+  gap: 14px;
+}
+
+.chart-card-copy {
+  display: grid;
+  gap: 4px;
+}
+
+.chart-card-copy strong {
+  font-family: var(--font-display-stack);
+  font-size: 28px;
+  color: #174b74;
+}
+
+.chart-card-copy p {
+  color: #5b7ea1;
+  line-height: 1.45;
+}
+
+.bar-chart {
+  height: 220px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(40px, 1fr));
+  gap: 10px;
+  align-items: end;
+}
+
+.compact-chart {
+  height: 180px;
+}
+
+.bar-column {
+  height: 100%;
+  display: grid;
+  grid-template-rows: 1fr auto;
+  gap: 8px;
+  align-items: end;
+}
+
+.bar-column span {
+  text-align: center;
+  font-size: 11px;
+  color: #55789c;
+}
+
+.bar-fill {
+  width: 100%;
+  border-radius: 14px 14px 6px 6px;
+  min-height: 10px;
+  animation: revealUp 420ms ease both;
+  transform-origin: bottom center;
+}
+
+.accent-fill {
+  background: linear-gradient(180deg, #55c6ff, #0f8fe8);
+}
+
+.emerald-fill {
+  background: linear-gradient(180deg, #72efcf, #00b98a);
+}
+
+.status-stack {
+  padding: 14px;
+  display: grid;
+  gap: 12px;
+}
+
+.status-row {
+  display: grid;
+  gap: 8px;
+  animation: revealUp 320ms ease both;
+}
+
+.status-row strong {
+  display: block;
+  color: #1c4b74;
+  margin-bottom: 2px;
+}
+
+.status-row span {
+  color: #5a7fa2;
+  font-size: 12px;
+}
+
+.status-meter {
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(196, 220, 241, 0.45);
+  overflow: hidden;
+}
+
+.status-meter-fill {
+  height: 100%;
+  border-radius: inherit;
+  animation: revealUp 380ms ease both;
+}
+
+.spotlight-grid {
+  padding: 14px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.spotlight-grid article,
+.pulse-summary-list div {
+  border: 1px solid rgba(78, 165, 220, 0.28);
+  border-radius: 14px;
+  padding: 14px;
+  display: grid;
+  gap: 4px;
+  background: rgba(255, 255, 255, 0.84);
+}
+
+.spotlight-grid span,
+.pulse-summary-list span {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: #5c7ea1;
+}
+
+.spotlight-grid strong,
+.pulse-summary-list strong {
+  font-family: var(--font-display-stack);
+  color: #174b74;
+  font-size: 24px;
+}
+
+.pulse-summary-list {
+  padding: 14px;
+  display: grid;
+  gap: 12px;
+}
+
 .home-grid {
   padding: 12px;
   display: grid;
@@ -1004,6 +1207,57 @@ button {
   display: grid;
   grid-template-columns: 1fr;
   gap: 10px;
+}
+
+.orders-manage-layout {
+  display: grid;
+  grid-template-columns: 320px minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+}
+
+.orders-filters-panel {
+  min-height: 620px;
+}
+
+.orders-filter-scroll {
+  max-height: calc(100vh - 220px);
+  overflow-y: auto;
+}
+
+.orders-filter-group {
+  border-top: 1px solid var(--border);
+  padding: 12px;
+  display: grid;
+  gap: 10px;
+}
+
+.orders-two-col {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.orders-results-panel {
+  min-height: 620px;
+}
+
+.orders-results-head {
+  border-bottom: 1px solid var(--border);
+  padding: 12px;
+  display: grid;
+  gap: 8px;
+}
+
+.orders-search-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.orders-table {
+  min-width: 1120px;
 }
 
 .vendor-form-grid {
@@ -1241,6 +1495,33 @@ body[data-theme="dark"] .stat-card strong {
   color: #d8f7ff;
 }
 
+body[data-theme="dark"] .hero-metric-card,
+body[data-theme="dark"] .spotlight-grid article,
+body[data-theme="dark"] .pulse-summary-list div {
+  background: rgba(7, 30, 52, 0.78);
+}
+
+body[data-theme="dark"] .hero-metric-card strong,
+body[data-theme="dark"] .chart-card-copy strong,
+body[data-theme="dark"] .spotlight-grid strong,
+body[data-theme="dark"] .pulse-summary-list strong,
+body[data-theme="dark"] .status-row strong {
+  color: #d8f7ff;
+}
+
+body[data-theme="dark"] .hero-metric-card small,
+body[data-theme="dark"] .chart-card-copy p,
+body[data-theme="dark"] .status-row span,
+body[data-theme="dark"] .spotlight-grid span,
+body[data-theme="dark"] .pulse-summary-list span,
+body[data-theme="dark"] .bar-column span {
+  color: #88afcb;
+}
+
+body[data-theme="dark"] .status-meter {
+  background: rgba(41, 82, 116, 0.65);
+}
+
 @keyframes syncPulse {
   0% {
     transform: scale(0.85);
@@ -1282,11 +1563,21 @@ body[data-theme="dark"] .stat-card strong {
   .products-layout,
   .sku-create-grid,
   .details-layout,
-  .order-detail-layout {
+  .order-detail-layout,
+  .orders-manage-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .hero-metrics-grid,
+  .home-analytics-grid {
     grid-template-columns: 1fr;
   }
 
   .vendor-panel {
+    max-height: none;
+  }
+
+  .orders-filter-scroll {
     max-height: none;
   }
 }
@@ -1321,8 +1612,12 @@ body[data-theme="dark"] .stat-card strong {
   .filters-grid,
   .home-grid,
   .module-launch-grid,
+  .hero-metrics-grid,
+  .home-analytics-grid,
+  .spotlight-grid,
   .vendor-form-grid,
-  .vendor-mapping-form {
+  .vendor-mapping-form,
+  .orders-two-col {
     grid-template-columns: 1fr;
   }
 

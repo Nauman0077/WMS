@@ -317,7 +317,11 @@ export interface OrderLineItem {
   skuId: string
   skuCode: string
   productName: string
+  allocatedWarehouse: string
   quantity: number
+  pendingFulfillment: number
+  quantityAllocated: number
+  quantityBackordered: number
   quantityShipped: number
   unitPrice: number
   lineTotal: number

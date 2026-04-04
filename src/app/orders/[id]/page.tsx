@@ -26,10 +26,13 @@ export default async function OrderDetailPage({ params }: OrderDetailPageProps) 
               <table className="data-table">
                 <thead>
                   <tr>
-                    <th>SKU</th>
-                    <th>Name</th>
-                    <th>Qty</th>
-                    <th>Qty Shipped</th>
+                    <th>Product</th>
+                    <th>Allocated Warehouse</th>
+                    <th>Pending Fulfillment</th>
+                    <th>Ordered</th>
+                    <th>Shipped</th>
+                    <th>Total Allocated</th>
+                    <th>Total Backordered</th>
                     <th>Unit Price</th>
                     <th>Line Total</th>
                   </tr>
@@ -37,10 +40,17 @@ export default async function OrderDetailPage({ params }: OrderDetailPageProps) 
                 <tbody>
                   {order.lines.map((line) => (
                     <tr key={line.lineId}>
-                      <td>{line.skuCode}</td>
-                      <td>{line.productName}</td>
+                      <td>
+                        <strong>{line.productName}</strong>
+                        <br />
+                        <span className="status-note" style={{ margin: 0 }}>SKU: {line.skuCode}</span>
+                      </td>
+                      <td>{line.allocatedWarehouse || "-"}</td>
+                      <td>{line.pendingFulfillment}</td>
                       <td>{line.quantity}</td>
                       <td>{line.quantityShipped}</td>
+                      <td>{line.quantityAllocated}</td>
+                      <td>{line.quantityBackordered}</td>
                       <td>{line.unitPrice.toFixed(2)}</td>
                       <td>{line.lineTotal.toFixed(2)}</td>
                     </tr>

@@ -100,6 +100,19 @@ function normalizeOrderStatus(value: string | undefined, fallback = ORDER_STATUS
   return ORDER_STATUS_LOOKUP.get(normalized) ?? fallback
 }
 
+function isCanceledOrderStatus(value: string): boolean {
+  return normalizeOrderStatus(value) === "Canceled"
+}
+
+function resetSkuAvailabilityForOrderReconciliation(rows: SkuRow[]): SkuRow[] {
+  return rows.map((row) => ({
+    ...row,
+    available: Math.max(0, row.onHand - row.reserved),
+    allocated: 0,
+    backorder: 0,
+  }))
+}
+
 function deriveVendorCode(value: string): string {
   const compact = value
     .trim()
@@ -328,7 +341,11 @@ interface OrderLineRow {
   skuId: string
   skuCode: string
   productName: string
+  allocatedWarehouse: string
   quantity: number
+  pendingFulfillment: number
+  quantityAllocated: number
+  quantityBackordered: number
   quantityShipped: number
   unitPrice: number
   lineTotal: number
@@ -745,7 +762,11 @@ async function readOrderLineRows(): Promise<OrderLineRow[]> {
     skuId: row.sku_id,
     skuCode: row.sku_code,
     productName: row.product_name,
+    allocatedWarehouse: row.allocated_warehouse,
     quantity: toNumber(row.quantity),
+    pendingFulfillment: toNumber(row.pending_fulfillment),
+    quantityAllocated: toNumber(row.quantity_allocated),
+    quantityBackordered: toNumber(row.quantity_backordered),
     quantityShipped: toNumber(row.quantity_shipped),
     unitPrice: toNumber(row.unit_price),
     lineTotal: toNumber(row.line_total),
@@ -764,7 +785,11 @@ async function writeOrderLineRows(rows: OrderLineRow[]): Promise<void> {
       sku_id: row.skuId,
       sku_code: row.skuCode,
       product_name: row.productName,
+      allocated_warehouse: row.allocatedWarehouse,
       quantity: fromNumber(row.quantity),
+      pending_fulfillment: fromNumber(row.pendingFulfillment),
+      quantity_allocated: fromNumber(row.quantityAllocated),
+      quantity_backordered: fromNumber(row.quantityBackordered),
       quantity_shipped: fromNumber(row.quantityShipped),
       unit_price: fromNumber(row.unitPrice),
       line_total: fromNumber(row.lineTotal),
@@ -1145,6 +1170,7 @@ export async function getWarehouseOptions(): Promise<string[]> {
 }
 
 export async function listSkus(): Promise<SkuRecord[]> {
+  await reconcileOrderAllocationStateIfNeeded()
   const [skuRows, noteRows, vendors, mappings, purchaseOrders, poLines, logs] = await Promise.all([
     readSkuRows(),
     readSkuNoteRows(),
@@ -1428,13 +1454,14 @@ export async function deleteSku(
   return { ok: true }
 }
 
-export async function getSkuLookup(): Promise<{ skuId: string; skuCode: string; name: string; barcode: string }[]> {
+export async function getSkuLookup(): Promise<{ skuId: string; skuCode: string; name: string; barcode: string; price: number }[]> {
   const rows = await readSkuRows()
   return rows.map((row) => ({
     skuId: row.skuId,
     skuCode: row.skuCode,
     name: row.name,
     barcode: row.barcode,
+    price: row.price,
   }))
 }
 
@@ -1456,7 +1483,11 @@ function mapOrderLineRow(row: OrderLineRow): OrderLineItem {
     skuId: row.skuId,
     skuCode: row.skuCode,
     productName: row.productName,
+    allocatedWarehouse: row.allocatedWarehouse,
     quantity: row.quantity,
+    pendingFulfillment: row.pendingFulfillment,
+    quantityAllocated: row.quantityAllocated,
+    quantityBackordered: row.quantityBackordered,
     quantityShipped: row.quantityShipped,
     unitPrice: row.unitPrice,
     lineTotal: row.lineTotal,
@@ -1474,7 +1505,114 @@ function mapOrderHistoryRow(row: OrderHistoryRow): OrderHistoryEntry {
   }
 }
 
+function allocateOrderLine(
+  line: OrderLineRow,
+  skuById: Map<string, SkuRow>,
+  warehouse: string,
+  now: string,
+): OrderLineRow {
+  const sku = skuById.get(line.skuId)
+  const pendingFulfillment = Math.max(0, line.quantity - line.quantityShipped)
+
+  if (!sku) {
+    return {
+      ...line,
+      allocatedWarehouse: "",
+      pendingFulfillment,
+      quantityAllocated: 0,
+      quantityBackordered: pendingFulfillment,
+      updatedAt: now,
+    }
+  }
+
+  const quantityAllocated = Math.min(Math.max(0, sku.available), pendingFulfillment)
+  const quantityBackordered = Math.max(0, pendingFulfillment - quantityAllocated)
+
+  sku.available = Math.max(0, sku.available - quantityAllocated)
+  sku.allocated += quantityAllocated
+  sku.backorder += quantityBackordered
+  sku.updatedAt = now
+
+  return {
+    ...line,
+    allocatedWarehouse: quantityAllocated > 0 ? warehouse : "",
+    pendingFulfillment,
+    quantityAllocated,
+    quantityBackordered,
+    updatedAt: now,
+  }
+}
+
+function releaseOrderLineAllocation(
+  line: OrderLineRow,
+  skuById: Map<string, SkuRow>,
+  now: string,
+): OrderLineRow {
+  const sku = skuById.get(line.skuId)
+  if (sku) {
+    sku.available += line.quantityAllocated
+    sku.allocated = Math.max(0, sku.allocated - line.quantityAllocated)
+    sku.backorder = Math.max(0, sku.backorder - line.quantityBackordered)
+    sku.updatedAt = now
+  }
+
+  return {
+    ...line,
+    allocatedWarehouse: "",
+    pendingFulfillment: 0,
+    quantityAllocated: 0,
+    quantityBackordered: 0,
+    updatedAt: now,
+  }
+}
+
+async function reconcileOrderAllocationStateIfNeeded(): Promise<void> {
+  await ensureDataStore()
+
+  const rawLineRows = await readCsvRows(CSV_FILES.orderLines.path, [...CSV_FILES.orderLines.headers])
+  const needsMigration = rawLineRows.some(
+    (row) =>
+      row.allocated_warehouse === "" &&
+      row.pending_fulfillment === "" &&
+      row.quantity_allocated === "" &&
+      row.quantity_backordered === "",
+  )
+
+  if (!needsMigration) {
+    return
+  }
+
+  const [skuRows, orderRows, orderLineRows] = await Promise.all([readSkuRows(), readOrderRows(), readOrderLineRows()])
+  const now = nowIso()
+  const nextSkus = resetSkuAvailabilityForOrderReconciliation(skuRows)
+  const skuById = new Map(nextSkus.map((row) => [row.skuId, row]))
+  const linesByOrderId = new Map<string, OrderLineRow[]>()
+
+  orderLineRows.forEach((line) => {
+    const bucket = linesByOrderId.get(line.orderId) ?? []
+    bucket.push(line)
+    linesByOrderId.set(line.orderId, bucket)
+  })
+
+  const nextLines: OrderLineRow[] = []
+  const sortedOrders = [...orderRows].sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+
+  sortedOrders.forEach((order) => {
+    const lines = (linesByOrderId.get(order.orderId) ?? []).sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+    lines.forEach((line) => {
+      nextLines.push(
+        isCanceledOrderStatus(order.status)
+          ? releaseOrderLineAllocation(line, skuById, now)
+          : allocateOrderLine(line, skuById, order.warehouse, now),
+      )
+    })
+  })
+
+  await Promise.all([writeSkuRows(nextSkus), writeOrderLineRows(nextLines)])
+}
+
 export async function listOrders(): Promise<OrderRecord[]> {
+  await reconcileOrderAllocationStateIfNeeded()
   const [orders, lines, history] = await Promise.all([
     readOrderRows(),
     readOrderLineRows(),
@@ -1535,6 +1673,7 @@ export async function createOrder(
   input: CreateOrderInput,
   changedBy: string,
 ): Promise<{ ok: true; order: OrderRecord } | { ok: false; errors: ValidationErrors }> {
+  await reconcileOrderAllocationStateIfNeeded()
   const [skuRows, orders, lines] = await Promise.all([readSkuRows(), readOrderRows(), readOrderLineRows()])
 
   if (!normalizeText(input.customerName)) {
@@ -1547,10 +1686,10 @@ export async function createOrder(
     return { ok: false, errors: { lines: "At least one order line is required." } }
   }
 
-  const skuById = new Map(skuRows.map((row) => [row.skuId, row]))
+  const skuLookupById = new Map(skuRows.map((row) => [row.skuId, row]))
   const lineErrors: ValidationErrors = {}
   input.lines.forEach((line, index) => {
-    if (!skuById.has(line.skuId)) {
+    if (!skuLookupById.has(line.skuId)) {
       lineErrors[`line_${index}`] = "SKU not found."
     }
     if (Number(line.quantity) <= 0) {
@@ -1564,24 +1703,34 @@ export async function createOrder(
   const now = nowIso()
   const orderId = randomUUID()
   const orderNumber = buildOrderNumber(orders)
+  const nextSkus = skuRows.map((row) => ({ ...row }))
+  const skuById = new Map(nextSkus.map((row) => [row.skuId, row]))
 
   const orderLines: OrderLineRow[] = input.lines.map((line) => {
     const sku = skuById.get(line.skuId)
     const unitPrice = Number.isFinite(line.unitPrice ?? NaN) ? Number(line.unitPrice) : sku?.price ?? 0
     const quantity = Number(line.quantity) || 0
-    return {
+    const baseLine: OrderLineRow = {
       lineId: randomUUID(),
       orderId,
       skuId: line.skuId,
       skuCode: sku?.skuCode ?? "",
       productName: sku?.name ?? "",
+      allocatedWarehouse: "",
       quantity,
+      pendingFulfillment: quantity,
+      quantityAllocated: 0,
+      quantityBackordered: 0,
       quantityShipped: 0,
       unitPrice,
       lineTotal: quantity * unitPrice,
       createdAt: now,
       updatedAt: now,
     }
+
+    return isCanceledOrderStatus(input.status)
+      ? releaseOrderLineAllocation(baseLine, skuById, now)
+      : allocateOrderLine(baseLine, skuById, input.warehouse, now)
   })
 
   const subtotal = orderLines.reduce((sum, line) => sum + line.lineTotal, 0)
@@ -1619,12 +1768,18 @@ export async function createOrder(
     updatedAt: now,
   }
 
-  await Promise.all([writeOrderRows([row, ...orders]), writeOrderLineRows([...lines, ...orderLines])])
+  await Promise.all([
+    writeOrderRows([row, ...orders]),
+    writeOrderLineRows([...lines, ...orderLines]),
+    writeSkuRows(nextSkus),
+  ])
+  const totalAllocated = orderLines.reduce((sum, line) => sum + line.quantityAllocated, 0)
+  const totalBackordered = orderLines.reduce((sum, line) => sum + line.quantityBackordered, 0)
   await appendOrderHistoryRow({
     historyId: randomUUID(),
     orderId,
     eventType: "created",
-    eventMessage: `Order created with ${orderLines.length} line item(s).`,
+    eventMessage: `Order created with ${orderLines.length} line item(s). Allocated ${totalAllocated} unit(s), backordered ${totalBackordered} unit(s).`,
     changedBy,
     createdAt: now,
   })
@@ -1638,7 +1793,8 @@ export async function createOrder(
 }
 
 export async function patchOrder(orderId: string, input: PatchOrderInput): Promise<OrderRecord | undefined> {
-  const orders = await readOrderRows()
+  await reconcileOrderAllocationStateIfNeeded()
+  const [orders, orderLineRows, skuRows] = await Promise.all([readOrderRows(), readOrderLineRows(), readSkuRows()])
   const target = orders.find((row) => row.orderId === orderId)
   if (!target) {
     return undefined
@@ -1668,7 +1824,29 @@ export async function patchOrder(orderId: string, input: PatchOrderInput): Promi
   }
   merged.totalAmount = merged.subtotal + merged.shippingAmount + merged.taxAmount
 
-  await writeOrderRows(orders.map((row) => (row.orderId === orderId ? merged : row)))
+  const nextOrderRows = orders.map((row) => (row.orderId === orderId ? merged : row))
+  const now = nowIso()
+  let nextOrderLineRows = orderLineRows
+  const nextSkuRows = skuRows
+
+  if (target.status !== merged.status && (isCanceledOrderStatus(target.status) || isCanceledOrderStatus(merged.status))) {
+    const skuById = new Map(nextSkuRows.map((row) => [row.skuId, row]))
+    nextOrderLineRows = orderLineRows.map((line) => {
+      if (line.orderId !== orderId) {
+        return line
+      }
+
+      return isCanceledOrderStatus(merged.status)
+        ? releaseOrderLineAllocation(line, skuById, now)
+        : allocateOrderLine(line, skuById, merged.warehouse, now)
+    })
+  }
+
+  await Promise.all([
+    writeOrderRows(nextOrderRows),
+    writeOrderLineRows(nextOrderLineRows),
+    writeSkuRows(nextSkuRows),
+  ])
 
   const changes: string[] = []
   if (target.status !== merged.status) {
@@ -1680,6 +1858,12 @@ export async function patchOrder(orderId: string, input: PatchOrderInput): Promi
   if (target.shippingCarrier !== merged.shippingCarrier || target.shippingMethod !== merged.shippingMethod) {
     changes.push("shipping method updated")
   }
+  if (target.status !== merged.status && (isCanceledOrderStatus(target.status) || isCanceledOrderStatus(merged.status))) {
+    const lineSnapshot = nextOrderLineRows.filter((line) => line.orderId === orderId)
+    const totalAllocated = lineSnapshot.reduce((sum, line) => sum + line.quantityAllocated, 0)
+    const totalBackordered = lineSnapshot.reduce((sum, line) => sum + line.quantityBackordered, 0)
+    changes.push(`allocated ${totalAllocated} unit(s), backordered ${totalBackordered} unit(s)`)
+  }
   if (changes.length > 0) {
     await appendOrderHistoryRow({
       historyId: randomUUID(),
@@ -1687,7 +1871,7 @@ export async function patchOrder(orderId: string, input: PatchOrderInput): Promi
       eventType: "updated",
       eventMessage: changes.join("; "),
       changedBy: "admin",
-      createdAt: nowIso(),
+      createdAt: now,
     })
   }
 
@@ -2279,21 +2463,121 @@ export async function receivePurchaseOrder(
 
 export async function getDashboardStats(): Promise<{
   skuCount: number
+  activeSkuCount: number
   vendorCount: number
   purchaseOrderPendingCount: number
   purchaseOrderInTransitCount: number
   purchaseOrderReceivedCount: number
   purchaseOrderClosedCount: number
   totalOnHand: number
+  unfulfilledOrderCount: number
+  fulfilledOrderCount: number
+  backorderedOrderCount: number
+  shippedTodayCount: number
+  monthlySalesAmount: number
+  monthlyOrderCount: number
+  monthlySalesTrend: { label: string; value: number }[]
+  dailyOrderVolume: { label: string; value: number }[]
+  orderStatusBreakdown: { label: string; value: number }[]
+  purchaseOrderStatusBreakdown: { label: string; value: number }[]
 }> {
-  const [skus, vendors, pos] = await Promise.all([readSkuRows(), readVendorRows(), readPurchaseOrderRows()])
+  await reconcileOrderAllocationStateIfNeeded()
+  const [skus, vendors, pos, orders, orderLines] = await Promise.all([
+    readSkuRows(),
+    readVendorRows(),
+    readPurchaseOrderRows(),
+    readOrderRows(),
+    readOrderLineRows(),
+  ])
+
+  const now = new Date()
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
+  const todayStart = new Date(now)
+  todayStart.setHours(0, 0, 0, 0)
+  const todayEnd = new Date(now)
+  todayEnd.setHours(23, 59, 59, 999)
+
+  const lineBuckets = new Map<string, OrderLineRow[]>()
+  orderLines.forEach((line) => {
+    const bucket = lineBuckets.get(line.orderId) ?? []
+    bucket.push(line)
+    lineBuckets.set(line.orderId, bucket)
+  })
+
+  const fulfilledOrderCount = orders.filter((order) => order.status === "Fulfilled").length
+  const unfulfilledOrderCount = orders.filter((order) => order.status !== "Fulfilled" && order.status !== "Canceled").length
+  const backorderedOrderCount = orders.filter((order) =>
+    (lineBuckets.get(order.orderId) ?? []).some((line) => line.quantityBackordered > 0),
+  ).length
+  const shippedTodayCount = orders.filter((order) => {
+    if (!order.shippedAt) return false
+    const shippedDate = new Date(order.shippedAt)
+    return shippedDate >= todayStart && shippedDate <= todayEnd
+  }).length
+  const monthlyOrders = orders.filter((order) => new Date(order.placedAt) >= monthStart && order.status !== "Canceled")
+  const monthlySalesAmount = monthlyOrders.reduce((sum, order) => sum + order.totalAmount, 0)
+  const monthlyOrderCount = monthlyOrders.length
+
+  const monthlySalesTrend = Array.from({ length: 6 }, (_, index) => {
+    const date = new Date(now.getFullYear(), now.getMonth() - (5 - index), 1)
+    const nextDate = new Date(date.getFullYear(), date.getMonth() + 1, 1)
+    const value = orders
+      .filter((order) => {
+        const placed = new Date(order.placedAt)
+        return placed >= date && placed < nextDate && order.status !== "Canceled"
+      })
+      .reduce((sum, order) => sum + order.totalAmount, 0)
+    return {
+      label: date.toLocaleString("en-US", { month: "short" }),
+      value,
+    }
+  })
+
+  const dailyOrderVolume = Array.from({ length: 7 }, (_, index) => {
+    const date = new Date(now)
+    date.setDate(now.getDate() - (6 - index))
+    const start = new Date(date)
+    start.setHours(0, 0, 0, 0)
+    const end = new Date(date)
+    end.setHours(23, 59, 59, 999)
+    const value = orders.filter((order) => {
+      const placed = new Date(order.placedAt)
+      return placed >= start && placed <= end
+    }).length
+    return {
+      label: date.toLocaleString("en-US", { weekday: "short" }),
+      value,
+    }
+  })
+
+  const orderStatusCounts = new Map<string, number>()
+  orders.forEach((order) => {
+    orderStatusCounts.set(order.status, (orderStatusCounts.get(order.status) ?? 0) + 1)
+  })
+
+  const poStatusCounts = new Map<string, number>()
+  pos.forEach((po) => {
+    poStatusCounts.set(po.status, (poStatusCounts.get(po.status) ?? 0) + 1)
+  })
+
   return {
     skuCount: skus.length,
+    activeSkuCount: skus.filter((sku) => sku.active).length,
     vendorCount: vendors.length,
     purchaseOrderPendingCount: pos.filter((po) => po.status === PO_STATUS_PENDING).length,
     purchaseOrderInTransitCount: pos.filter((po) => po.status === PO_STATUS_IN_TRANSIT).length,
     purchaseOrderReceivedCount: pos.filter((po) => po.status === PO_STATUS_RECEIVED).length,
     purchaseOrderClosedCount: pos.filter((po) => po.status === PO_STATUS_CLOSED).length,
     totalOnHand: skus.reduce((sum, sku) => sum + sku.onHand, 0),
+    unfulfilledOrderCount,
+    fulfilledOrderCount,
+    backorderedOrderCount,
+    shippedTodayCount,
+    monthlySalesAmount,
+    monthlyOrderCount,
+    monthlySalesTrend,
+    dailyOrderVolume,
+    orderStatusBreakdown: Array.from(orderStatusCounts.entries()).map(([label, value]) => ({ label, value })),
+    purchaseOrderStatusBreakdown: Array.from(poStatusCounts.entries()).map(([label, value]) => ({ label, value })),
   }
 }

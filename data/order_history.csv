@@ -1,3 +1,4 @@
 history_id,order_id,event_type,event_message,changed_by,created_at
 0873f787-f6c9-4571-9bd2-e8fe774a2ffa,aa7cfe15-712b-4542-acd9-99f8cca526bb,created,Order created,seed,2026-04-02T15:30:35.878Z
 bcdd2241-3de4-4470-b380-0f64018fff0d,c00d8019-635f-4b07-bbc1-0d396656474b,created,Order created with 2 line item(s).,admin,2026-04-02T18:47:37.897Z
+381f1491-7616-42d1-bb5e-2bbccc54b0ed,a0ef186b-5d75-4954-a4d3-3b8a697202f7,created,"Order created with 1 line item(s). Allocated 58 unit(s), backordered 142 unit(s).",admin,2026-04-04T13:21:05.473Z

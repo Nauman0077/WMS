@@ -8,6 +8,7 @@ interface SkuLookup {
   skuId: string
   skuCode: string
   name: string
+  price: number
 }
 
 interface OrderLineForm {
@@ -20,6 +21,11 @@ const initialLine: OrderLineForm = {
   skuId: "",
   quantity: "1",
   unitPrice: "0",
+}
+
+function getSkuPrice(skus: SkuLookup[], skuId: string): string {
+  const selected = skus.find((sku) => sku.skuId === skuId)
+  return String(selected?.price ?? 0)
 }
 
 export function OrderCreateForm() {
@@ -56,7 +62,7 @@ export function OrderCreateForm() {
           const skus = skuData.skus ?? []
           setSkuLookup(skus)
           if (skus.length > 0) {
-            setLines([{ ...initialLine, skuId: skus[0].skuId }])
+            setLines([{ ...initialLine, skuId: skus[0].skuId, unitPrice: String(skus[0].price ?? 0) }])
           }
         }
         if (referenceResponse.ok) {
@@ -80,7 +86,14 @@ export function OrderCreateForm() {
   const total = subtotal + Number(shippingAmount || 0) + Number(taxAmount || 0)
 
   function addLine() {
-    setLines((current) => [...current, { ...initialLine, skuId: skuLookup[0]?.skuId ?? "" }])
+    setLines((current) => [
+      ...current,
+      {
+        ...initialLine,
+        skuId: skuLookup[0]?.skuId ?? "",
+        unitPrice: String(skuLookup[0]?.price ?? 0),
+      },
+    ])
   }
 
   function removeLine(index: number) {
@@ -260,7 +273,16 @@ export function OrderCreateForm() {
               {lines.map((line, index) => (
                 <tr key={`order-line-${index}`}>
                   <td>
-                    <select className="input" value={line.skuId} onChange={(event) => updateLine(index, { skuId: event.target.value })}>
+                    <select
+                      className="input"
+                      value={line.skuId}
+                      onChange={(event) =>
+                        updateLine(index, {
+                          skuId: event.target.value,
+                          unitPrice: getSkuPrice(skuLookup, event.target.value),
+                        })
+                      }
+                    >
                       {skuLookup.map((sku) => (
                         <option key={sku.skuId} value={sku.skuId}>
                           {sku.skuCode} - {sku.name}

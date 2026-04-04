@@ -1,4 +1,5 @@
-line_id,order_id,sku_id,sku_code,product_name,quantity,quantity_shipped,unit_price,line_total,created_at,updated_at
-37f25142-ee7f-47c4-a313-32738ac59113,aa7cfe15-712b-4542-acd9-99f8cca526bb,e6d06f69-5e91-44ae-95e3-88a61ae0d774,TestSKU,Testing SKU,1,0,49.99,49.99,2026-04-02T15:30:35.878Z,2026-04-02T15:30:35.878Z
-43cde5cb-72c9-44aa-a683-701494993195,c00d8019-635f-4b07-bbc1-0d396656474b,e6d06f69-5e91-44ae-95e3-88a61ae0d774,TestSKU,Testing SKU,1,0,0,0,2026-04-02T18:47:37.897Z,2026-04-02T18:47:37.897Z
-271ff6a9-9ad5-4e63-b0cb-bd9927d23c0f,c00d8019-635f-4b07-bbc1-0d396656474b,518002659,ALLB1,Wheel Without Lock for Carry-On - Mini Cherry Red,1,0,0,0,2026-04-02T18:47:37.897Z,2026-04-02T18:47:37.897Z
+line_id,order_id,sku_id,sku_code,product_name,allocated_warehouse,quantity,pending_fulfillment,quantity_allocated,quantity_backordered,quantity_shipped,unit_price,line_total,created_at,updated_at
+37f25142-ee7f-47c4-a313-32738ac59113,aa7cfe15-712b-4542-acd9-99f8cca526bb,e6d06f69-5e91-44ae-95e3-88a61ae0d774,TestSKU,Testing SKU,"Las Vegas, USA - Nysonian - All Brands / Primary",1,1,1,0,0,49.99,49.99,2026-04-02T15:30:35.878Z,2026-04-03T20:53:54.072Z
+43cde5cb-72c9-44aa-a683-701494993195,c00d8019-635f-4b07-bbc1-0d396656474b,e6d06f69-5e91-44ae-95e3-88a61ae0d774,TestSKU,Testing SKU,"Las Vegas, USA - Nysonian - All Brands / Primary",1,1,1,0,0,0,0,2026-04-02T18:47:37.897Z,2026-04-03T20:53:54.072Z
+271ff6a9-9ad5-4e63-b0cb-bd9927d23c0f,c00d8019-635f-4b07-bbc1-0d396656474b,518002659,ALLB1,Wheel Without Lock for Carry-On - Mini Cherry Red,"Las Vegas, USA - Nysonian - All Brands / Primary",1,1,1,0,0,0,0,2026-04-02T18:47:37.897Z,2026-04-03T20:53:54.072Z
+e5db08aa-cd13-4acf-bcd6-af5e8b5d0eaa,a0ef186b-5d75-4954-a4d3-3b8a697202f7,e6d06f69-5e91-44ae-95e3-88a61ae0d774,TestSKU,Testing SKU,"Las Vegas, USA - Nysonian - All Brands / Primary",200,200,58,142,0,0,0,2026-04-04T13:21:05.473Z,2026-04-04T13:21:05.473Z
