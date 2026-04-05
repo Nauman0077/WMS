@@ -1,3 +1,5 @@
 log_id,sku_id,date,warehouse,location,changed_by,old_on_hand,new_on_hand,reference_type,reference_id,note
 110e5b7e-ebc6-41af-bde7-9324d7f6463c,e6d06f69-5e91-44ae-95e3-88a61ae0d774,2026-04-02T14:04:59.440Z,"Las Vegas, USA - Nysonian - All Brands / Primary",Dummy Location,admin,0,10,purchase_order,PO-1000,Received 10 units from PO-1000 at Dummy Location
 59d5edb7-5d63-4b5b-9904-b8521df30db7,e6d06f69-5e91-44ae-95e3-88a61ae0d774,2026-04-02T14:12:22.583Z,"Las Vegas, USA - Nysonian - All Brands / Primary",Dummy Location,admin,10,60,purchase_order,PO-1001,Received 50 units from PO-1001 at Dummy Location
+f5776798-b7be-4d79-9440-d2ad6ebf99ec,e6d06f69-5e91-44ae-95e3-88a61ae0d774,2026-04-04T20:32:57.209Z,"Las Vegas, USA - Nysonian - All Brands / Primary",Dummy Location,admin,60,70,purchase_order,PO-1002,Received 10 units from PO-1002 at Dummy Location
+89d62b93-60e3-4372-9e81-8f46b4e3c997,e6d06f69-5e91-44ae-95e3-88a61ae0d774,2026-04-05T13:31:59.779Z,"Las Vegas, USA - Nysonian - All Brands / Primary",Dummy Location,admin,70,270,purchase_order,PO-1003,Received 200 units from PO-1003 at Dummy Location

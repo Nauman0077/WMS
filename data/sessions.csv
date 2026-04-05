@@ -1,3 +1,7 @@
 session_id,user_id,username,issued_at,expires_at,revoked_at,ip,user_agent
 b5267ba1-229d-4440-89d2-b071eb29b25a,51a14602-4a54-4fe0-b8c3-9db9ece9afeb,admin,2026-03-12T18:20:27.784Z,2026-03-19T18:20:27.784Z,,::1,"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36"
 65d45884-4ac3-4dc1-afb2-6cb783e8e3a3,51a14602-4a54-4fe0-b8c3-9db9ece9afeb,admin,2026-04-02T13:58:24.626Z,2026-04-09T13:58:24.626Z,,::1,"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36"
+ff1f2867-3b55-433f-899f-7b3a7e6c1567,51a14602-4a54-4fe0-b8c3-9db9ece9afeb,admin,2026-04-05T12:49:44.055Z,2026-04-12T12:49:44.055Z,,::1,Mozilla/5.0 (Windows NT; Windows NT 10.0; en-US) WindowsPowerShell/5.1.22621.4249
+ce3c5f89-5890-48e8-b483-82b0dcdbc701,51a14602-4a54-4fe0-b8c3-9db9ece9afeb,admin,2026-04-05T12:50:12.642Z,2026-04-12T12:50:12.643Z,,::1,Mozilla/5.0 (Windows NT; Windows NT 10.0; en-US) WindowsPowerShell/5.1.22621.4249
+411f039a-c5ee-483e-b2a5-2f7858a3adcd,51a14602-4a54-4fe0-b8c3-9db9ece9afeb,admin,2026-04-05T12:50:40.560Z,2026-04-12T12:50:40.560Z,,::1,Mozilla/5.0 (Windows NT; Windows NT 10.0; en-US) WindowsPowerShell/5.1.22621.4249
+883dc9d7-32ca-43b9-a998-78dc28e8a085,51a14602-4a54-4fe0-b8c3-9db9ece9afeb,admin,2026-04-05T13:20:42.139Z,2026-04-12T13:20:42.139Z,,::1,Mozilla/5.0 (Windows NT; Windows NT 10.0; en-US) WindowsPowerShell/5.1.22621.4249

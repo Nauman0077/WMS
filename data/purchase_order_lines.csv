@@ -1,3 +1,5 @@
 po_line_id,po_id,line_number,sku_id,sku_code,product_name,vendor_sku,ordered_qty,received_qty,unit_cost,expected_date,line_status,notes,created_at,updated_at
 8ab95979-3a99-4cb6-a792-0757d327a368,2736cd1b-6f1f-4e1e-9955-dae07856806b,1,e6d06f69-5e91-44ae-95e3-88a61ae0d774,TestSKU,Testing SKU,Test,10,10,1000,2026-04-03,Received,,2026-04-02T14:04:12.348Z,2026-04-02T14:04:59.440Z
 91c4c5d0-c61f-44d4-ab37-880baa9a5e2d,06438740-109f-4166-8c1f-8b36a910fb7c,1,e6d06f69-5e91-44ae-95e3-88a61ae0d774,TestSKU,Testing SKU,Test,50,50,1000,2026-04-03,Received,,2026-04-02T14:11:58.710Z,2026-04-02T14:12:22.583Z
+d005b17c-a5b1-4cfc-bdd3-de9be2a3e3c8,5d3aa946-1d33-478a-95e0-e78890f797c8,1,e6d06f69-5e91-44ae-95e3-88a61ae0d774,TestSKU,Testing SKU,Test,10,10,1000,2026-04-04,Received,,2026-04-04T20:31:44.991Z,2026-04-04T20:32:57.209Z
+22e8b123-c5ff-4e6b-96f0-662ee3cfaede,e574cb96-998d-4961-b593-d8e4c066b523,1,e6d06f69-5e91-44ae-95e3-88a61ae0d774,TestSKU,Testing SKU,Test,200,200,1000,2026-04-05,Received,,2026-04-05T13:31:40.358Z,2026-04-05T13:31:59.779Z

@@ -2,3 +2,10 @@ history_id,order_id,event_type,event_message,changed_by,created_at
 0873f787-f6c9-4571-9bd2-e8fe774a2ffa,aa7cfe15-712b-4542-acd9-99f8cca526bb,created,Order created,seed,2026-04-02T15:30:35.878Z
 bcdd2241-3de4-4470-b380-0f64018fff0d,c00d8019-635f-4b07-bbc1-0d396656474b,created,Order created with 2 line item(s).,admin,2026-04-02T18:47:37.897Z
 381f1491-7616-42d1-bb5e-2bbccc54b0ed,a0ef186b-5d75-4954-a4d3-3b8a697202f7,created,"Order created with 1 line item(s). Allocated 58 unit(s), backordered 142 unit(s).",admin,2026-04-04T13:21:05.473Z
+29e69c29-449e-41de-b18b-7d387e97ea0b,a0ef186b-5d75-4954-a4d3-3b8a697202f7,reprocessed,Manual reprocess executed. Allocated 10 additional unit(s); backorder reduced by 10 unit(s).,admin,2026-04-05T13:20:43.933Z
+daf49186-5b4c-4c7d-8fd8-3cee7ac2313b,01df821d-ad87-4b44-840d-12e37c4c58a7,created,"Order created with 1 line item(s). Allocated 0 unit(s), backordered 20 unit(s).",admin,2026-04-05T13:30:19.141Z
+a398055a-c2c2-4188-8ee9-48ddf6a88764,01df821d-ad87-4b44-840d-12e37c4c58a7,auto_reprocessed,Auto-reprocessed after PO receipt. Allocated 20 additional unit(s); backorder reduced by 20 unit(s).,admin,2026-04-05T13:31:59.779Z
+4f0d394e-58d7-4e69-9846-b4e53a6c6025,01df821d-ad87-4b44-840d-12e37c4c58a7,reprocessed,Manual reprocess executed. No allocation changes.,admin,2026-04-05T13:32:44.511Z
+021d8d7b-b358-4c83-9139-d5177c3e67db,01df821d-ad87-4b44-840d-12e37c4c58a7,reprocessed,Manual reprocess executed. No allocation changes.,admin,2026-04-05T13:32:49.024Z
+7f0f6d36-2229-4e3a-906f-c0454a546347,01df821d-ad87-4b44-840d-12e37c4c58a7,updated,operator hold: off -> on,admin,2026-04-05T13:33:06.880Z
+1d40688a-3ddb-4e65-85bb-9784861546bf,01df821d-ad87-4b44-840d-12e37c4c58a7,updated,operator hold: on -> off,admin,2026-04-05T13:33:58.401Z
