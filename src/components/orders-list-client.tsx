@@ -70,11 +70,19 @@ function isOrderReadyToShip(order: OrderRecord): boolean {
     return false
   }
 
+  if (isOrderHeld(order)) {
+    return false
+  }
+
   return order.lines.every(
     (line) =>
       line.pendingFulfillment === 0 ||
       (line.quantityAllocated >= line.pendingFulfillment && line.quantityBackordered === 0),
   )
+}
+
+function isOrderHeld(order: OrderRecord): boolean {
+  return order.fraudHold || order.addressHold || order.operatorHold || order.paymentHold || Boolean(order.holdUntilDate)
 }
 
 export function OrdersListClient({ orders }: OrdersListClientProps) {
@@ -251,11 +259,52 @@ export function OrdersListClient({ orders }: OrdersListClientProps) {
       rows = rows.filter((order) => isOrderOnBackorder(order) === wanted)
     }
 
-    if (inTote !== "All" || lockedOrders !== "All" || ordersHiddenFromApp !== "All" || flagged !== "All") {
+    if (flagged !== "All") {
+      const wanted = flagged === "Yes"
+      rows = rows.filter((order) => order.flagged === wanted)
+    }
+
+    if (priorityOrders) {
+      rows = rows.filter((order) => order.priorityOrder)
+    }
+
+    if (fraudHold) {
+      rows = rows.filter((order) => order.fraudHold)
+    }
+
+    if (addressHold) {
+      rows = rows.filter((order) => order.addressHold)
+    }
+
+    if (operatorHold) {
+      rows = rows.filter((order) => order.operatorHold)
+    }
+
+    if (paymentHold) {
+      rows = rows.filter((order) => order.paymentHold)
+    }
+
+    if (anyHold) {
+      rows = rows.filter((order) => isOrderHeld(order))
+    }
+
+    if (noHolds) {
+      rows = rows.filter((order) => !isOrderHeld(order))
+    }
+
+    if (hasHoldUntilDate === "Yes") {
+      rows = rows.filter((order) => Boolean(order.holdUntilDate))
+    }
+
+    if (hasHoldUntilDate === "No") {
+      rows = rows.filter((order) => !order.holdUntilDate)
+    }
+
+    if (inTote !== "All" || lockedOrders !== "All" || ordersHiddenFromApp !== "All") {
       rows = rows.filter(() => true)
     }
 
-    if (priorityOrders || fraudHold || addressHold || operatorHold || paymentHold || anyHold || noHolds || includeKitComponents || hasHoldUntilDate !== "All" || profileFilter !== "All") {
+    if (includeKitComponents || profileFilter !== "All") {
       rows = rows.filter(() => true)
     }
 

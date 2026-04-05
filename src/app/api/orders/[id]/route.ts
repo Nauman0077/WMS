@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import { getCurrentSession } from "@/lib/auth-session"
-import { getOrderById, patchOrder } from "@/lib/wms-repository"
+import { getOrderById, patchOrder, reprocessOrderAllocations } from "@/lib/wms-repository"
 import { PatchOrderInput } from "@/lib/wms-types"
 
 interface RouteContext {
@@ -36,4 +36,24 @@ export async function PATCH(request: Request, context: RouteContext) {
   }
 
   return NextResponse.json({ order: updated })
+}
+
+export async function POST(_: Request, context: RouteContext) {
+  const session = await getCurrentSession()
+  if (!session) {
+    return NextResponse.json({ message: "Unauthorized" }, { status: 401 })
+  }
+
+  try {
+    const { id } = await context.params
+    const result = await reprocessOrderAllocations(id, session.username)
+    if (!result.ok) {
+      return NextResponse.json({ message: "Reprocess failed", errors: result.errors }, { status: 422 })
+    }
+
+    return NextResponse.json({ order: result.order, changed: result.changed })
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unexpected reprocess failure"
+    return NextResponse.json({ message }, { status: 500 })
+  }
 }

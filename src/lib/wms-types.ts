@@ -354,6 +354,13 @@ export interface OrderRecord {
   warehouse: string
   status: string
   paymentStatus: string
+  flagged: boolean
+  priorityOrder: boolean
+  fraudHold: boolean
+  addressHold: boolean
+  operatorHold: boolean
+  paymentHold: boolean
+  holdUntilDate: string
   placedAt: string
   requiredShipDate: string
   shippedAt: string
@@ -390,6 +397,13 @@ export interface CreateOrderInput {
   warehouse: string
   status: string
   paymentStatus: string
+  flagged?: boolean
+  priorityOrder?: boolean
+  fraudHold?: boolean
+  addressHold?: boolean
+  operatorHold?: boolean
+  paymentHold?: boolean
+  holdUntilDate?: string
   placedAt: string
   requiredShipDate?: string
   notes?: string

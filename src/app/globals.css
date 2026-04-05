@@ -1209,6 +1209,15 @@ button {
   gap: 10px;
 }
 
+.holds-section {
+  display: grid;
+  gap: 10px;
+  border: 1px solid rgba(78, 165, 220, 0.24);
+  border-radius: 12px;
+  padding: 12px;
+  background: rgba(247, 252, 255, 0.96);
+}
+
 .orders-manage-layout {
   display: grid;
   grid-template-columns: 320px minmax(0, 1fr);
@@ -1520,6 +1529,11 @@ body[data-theme="dark"] .bar-column span {
 
 body[data-theme="dark"] .status-meter {
   background: rgba(41, 82, 116, 0.65);
+}
+
+body[data-theme="dark"] .holds-section {
+  background: rgba(7, 30, 52, 0.62);
+  border-color: rgba(87, 163, 211, 0.28);
 }
 
 @keyframes syncPulse {

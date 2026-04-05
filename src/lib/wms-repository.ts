@@ -323,6 +323,13 @@ interface OrderRow {
   warehouse: string
   status: string
   paymentStatus: string
+  flagged: boolean
+  priorityOrder: boolean
+  fraudHold: boolean
+  addressHold: boolean
+  operatorHold: boolean
+  paymentHold: boolean
+  holdUntilDate: string
   placedAt: string
   requiredShipDate: string
   shippedAt: string
@@ -705,6 +712,13 @@ async function readOrderRows(): Promise<OrderRow[]> {
     warehouse: row.warehouse,
     status: normalizeOrderStatus(row.status),
     paymentStatus: row.payment_status,
+    flagged: toBool(row.flagged),
+    priorityOrder: toBool(row.priority_order),
+    fraudHold: toBool(row.fraud_hold),
+    addressHold: toBool(row.address_hold),
+    operatorHold: toBool(row.operator_hold),
+    paymentHold: toBool(row.payment_hold),
+    holdUntilDate: row.hold_until_date,
     placedAt: row.placed_at,
     requiredShipDate: row.required_ship_date,
     shippedAt: row.shipped_at,
@@ -740,6 +754,13 @@ async function writeOrderRows(rows: OrderRow[]): Promise<void> {
       warehouse: row.warehouse,
       status: row.status,
       payment_status: row.paymentStatus,
+      flagged: fromBool(row.flagged),
+      priority_order: fromBool(row.priorityOrder),
+      fraud_hold: fromBool(row.fraudHold),
+      address_hold: fromBool(row.addressHold),
+      operator_hold: fromBool(row.operatorHold),
+      payment_hold: fromBool(row.paymentHold),
+      hold_until_date: row.holdUntilDate,
       placed_at: row.placedAt,
       required_ship_date: row.requiredShipDate,
       shipped_at: row.shippedAt,
@@ -1566,6 +1587,116 @@ function releaseOrderLineAllocation(
   }
 }
 
+interface OrderAllocationReprocessChange {
+  orderId: string
+  allocatedAdded: number
+  backorderReduced: number
+}
+
+function reprocessRuntimeOrderAllocations(params: {
+  orders: OrderRow[]
+  orderLines: OrderLineRow[]
+  skus: SkuRow[]
+  now: string
+  targetOrderId?: string
+}): {
+  nextSkus: SkuRow[]
+  nextOrderLines: OrderLineRow[]
+  changes: OrderAllocationReprocessChange[]
+} {
+  const { orders, orderLines, skus, now, targetOrderId } = params
+  const nextSkus = skus.map((row) => ({ ...row }))
+  const skuById = new Map(nextSkus.map((row) => [row.skuId, row]))
+  const nextOrderLines = orderLines.map((line) => ({ ...line }))
+  const lineChanges = new Map<string, OrderAllocationReprocessChange>()
+
+  const candidateOrders = [...orders]
+    .filter((order) => !isCanceledOrderStatus(order.status))
+    .filter((order) => (targetOrderId ? order.orderId === targetOrderId : true))
+    .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+
+  candidateOrders.forEach((order) => {
+    const lines = nextOrderLines
+      .filter((line) => line.orderId === order.orderId)
+      .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+
+    lines.forEach((line) => {
+      const sku = skuById.get(line.skuId)
+      if (!sku) {
+        return
+      }
+
+      const remainingUnallocated = Math.max(0, line.quantity - line.quantityShipped - line.quantityAllocated)
+      if (remainingUnallocated <= 0) {
+        return
+      }
+
+      const additionalAllocated = Math.min(Math.max(0, sku.available), remainingUnallocated)
+      if (additionalAllocated <= 0) {
+        return
+      }
+
+      const additionalBackorderReduction = Math.min(line.quantityBackordered, additionalAllocated)
+      sku.available = Math.max(0, sku.available - additionalAllocated)
+      sku.allocated += additionalAllocated
+      sku.backorder = Math.max(0, sku.backorder - additionalBackorderReduction)
+      sku.updatedAt = now
+
+      line.quantityAllocated += additionalAllocated
+      line.quantityBackordered = Math.max(0, line.quantityBackordered - additionalBackorderReduction)
+      line.allocatedWarehouse = line.allocatedWarehouse || order.warehouse
+      line.updatedAt = now
+
+      const existing = lineChanges.get(order.orderId) ?? {
+        orderId: order.orderId,
+        allocatedAdded: 0,
+        backorderReduced: 0,
+      }
+      existing.allocatedAdded += additionalAllocated
+      existing.backorderReduced += additionalBackorderReduction
+      lineChanges.set(order.orderId, existing)
+    })
+  })
+
+  return {
+    nextSkus,
+    nextOrderLines,
+    changes: candidateOrders
+      .map((order) => lineChanges.get(order.orderId))
+      .filter((entry): entry is OrderAllocationReprocessChange => Boolean(entry)),
+  }
+}
+
+async function appendOrderReprocessHistoryEntries(params: {
+  orders: OrderRow[]
+  changes: OrderAllocationReprocessChange[]
+  changedBy: string
+  createdAt: string
+  reason: "manual" | "po_receive"
+}): Promise<void> {
+  const { orders, changes, changedBy, createdAt, reason } = params
+  const orderMap = new Map(orders.map((order) => [order.orderId, order]))
+
+  await Promise.all(
+    changes.map(async (change) => {
+      const order = orderMap.get(change.orderId)
+      if (!order) {
+        return
+      }
+
+      const prefix = reason === "manual" ? "Manual reprocess executed." : "Auto-reprocessed after PO receipt."
+      await appendOrderHistoryRow({
+        historyId: randomUUID(),
+        orderId: change.orderId,
+        eventType: reason === "manual" ? "reprocessed" : "auto_reprocessed",
+        eventMessage: `${prefix} Allocated ${change.allocatedAdded} additional unit(s); backorder reduced by ${change.backorderReduced} unit(s).`,
+        changedBy,
+        createdAt,
+      })
+    }),
+  )
+}
+
 async function reconcileOrderAllocationStateIfNeeded(): Promise<void> {
   await ensureDataStore()
 
@@ -1647,6 +1778,13 @@ export async function listOrders(): Promise<OrderRecord[]> {
         warehouse: order.warehouse,
         status: order.status,
         paymentStatus: order.paymentStatus,
+        flagged: order.flagged,
+        priorityOrder: order.priorityOrder,
+        fraudHold: order.fraudHold,
+        addressHold: order.addressHold,
+        operatorHold: order.operatorHold,
+        paymentHold: order.paymentHold,
+        holdUntilDate: order.holdUntilDate,
         placedAt: order.placedAt,
         requiredShipDate: order.requiredShipDate,
         shippedAt: order.shippedAt,
@@ -1756,6 +1894,13 @@ export async function createOrder(
     warehouse: normalizeText(input.warehouse),
     status: normalizeOrderStatus(input.status),
     paymentStatus: normalizeText(input.paymentStatus) || "Pending",
+    flagged: input.flagged ?? false,
+    priorityOrder: input.priorityOrder ?? false,
+    fraudHold: input.fraudHold ?? false,
+    addressHold: input.addressHold ?? false,
+    operatorHold: input.operatorHold ?? false,
+    paymentHold: input.paymentHold ?? false,
+    holdUntilDate: normalizeText(input.holdUntilDate ?? ""),
     placedAt: input.placedAt || now,
     requiredShipDate: input.requiredShipDate || "",
     shippedAt: "",
@@ -1816,6 +1961,13 @@ export async function patchOrder(orderId: string, input: PatchOrderInput): Promi
     warehouse: input.warehouse ?? target.warehouse,
     status: input.status ? normalizeOrderStatus(input.status, target.status) : target.status,
     paymentStatus: input.paymentStatus ?? target.paymentStatus,
+    flagged: typeof input.flagged === "boolean" ? input.flagged : target.flagged,
+    priorityOrder: typeof input.priorityOrder === "boolean" ? input.priorityOrder : target.priorityOrder,
+    fraudHold: typeof input.fraudHold === "boolean" ? input.fraudHold : target.fraudHold,
+    addressHold: typeof input.addressHold === "boolean" ? input.addressHold : target.addressHold,
+    operatorHold: typeof input.operatorHold === "boolean" ? input.operatorHold : target.operatorHold,
+    paymentHold: typeof input.paymentHold === "boolean" ? input.paymentHold : target.paymentHold,
+    holdUntilDate: input.holdUntilDate ?? target.holdUntilDate,
     requiredShipDate: input.requiredShipDate ?? target.requiredShipDate,
     notes: input.notes ?? target.notes,
     shippingAmount: Number.isFinite(input.shippingAmount ?? NaN) ? Number(input.shippingAmount) : target.shippingAmount,
@@ -1855,6 +2007,27 @@ export async function patchOrder(orderId: string, input: PatchOrderInput): Promi
   if (target.paymentStatus !== merged.paymentStatus) {
     changes.push(`payment: ${target.paymentStatus} -> ${merged.paymentStatus}`)
   }
+  if (target.flagged !== merged.flagged) {
+    changes.push(`flagged: ${target.flagged ? "on" : "off"} -> ${merged.flagged ? "on" : "off"}`)
+  }
+  if (target.priorityOrder !== merged.priorityOrder) {
+    changes.push(`priority: ${target.priorityOrder ? "on" : "off"} -> ${merged.priorityOrder ? "on" : "off"}`)
+  }
+  if (target.fraudHold !== merged.fraudHold) {
+    changes.push(`fraud hold: ${target.fraudHold ? "on" : "off"} -> ${merged.fraudHold ? "on" : "off"}`)
+  }
+  if (target.addressHold !== merged.addressHold) {
+    changes.push(`address hold: ${target.addressHold ? "on" : "off"} -> ${merged.addressHold ? "on" : "off"}`)
+  }
+  if (target.operatorHold !== merged.operatorHold) {
+    changes.push(`operator hold: ${target.operatorHold ? "on" : "off"} -> ${merged.operatorHold ? "on" : "off"}`)
+  }
+  if (target.paymentHold !== merged.paymentHold) {
+    changes.push(`payment hold: ${target.paymentHold ? "on" : "off"} -> ${merged.paymentHold ? "on" : "off"}`)
+  }
+  if (target.holdUntilDate !== merged.holdUntilDate) {
+    changes.push(`hold until: ${target.holdUntilDate || "none"} -> ${merged.holdUntilDate || "none"}`)
+  }
   if (target.shippingCarrier !== merged.shippingCarrier || target.shippingMethod !== merged.shippingMethod) {
     changes.push("shipping method updated")
   }
@@ -1876,6 +2049,60 @@ export async function patchOrder(orderId: string, input: PatchOrderInput): Promi
   }
 
   return getOrderById(orderId)
+}
+
+export async function reprocessOrderAllocations(
+  orderId: string,
+  changedBy: string,
+): Promise<{ ok: true; order: OrderRecord; changed: boolean } | { ok: false; errors: ValidationErrors }> {
+  await reconcileOrderAllocationStateIfNeeded()
+
+  const [orders, orderLineRows, skuRows] = await Promise.all([readOrderRows(), readOrderLineRows(), readSkuRows()])
+  const order = orders.find((row) => row.orderId === orderId)
+  if (!order) {
+    return { ok: false, errors: { order: "Order not found." } }
+  }
+
+  if (isCanceledOrderStatus(order.status)) {
+    return { ok: false, errors: { order: "Canceled orders cannot be reprocessed." } }
+  }
+
+  const now = nowIso()
+  const result = reprocessRuntimeOrderAllocations({
+    orders,
+    orderLines: orderLineRows,
+    skus: skuRows,
+    now,
+    targetOrderId: orderId,
+  })
+
+  await Promise.all([writeSkuRows(result.nextSkus), writeOrderLineRows(result.nextOrderLines)])
+
+  if (result.changes.length > 0) {
+    await appendOrderReprocessHistoryEntries({
+      orders,
+      changes: result.changes,
+      changedBy,
+      createdAt: now,
+      reason: "manual",
+    })
+  } else {
+    await appendOrderHistoryRow({
+      historyId: randomUUID(),
+      orderId,
+      eventType: "reprocessed",
+      eventMessage: "Manual reprocess executed. No allocation changes.",
+      changedBy,
+      createdAt: now,
+    })
+  }
+
+  const updated = await getOrderById(orderId)
+  if (!updated) {
+    return { ok: false, errors: { order: "Failed to load updated order." } }
+  }
+
+  return { ok: true, order: updated, changed: result.changes.length > 0 }
 }
 
 function validateVendorInput(input: CreateVendorInput, existing: VendorRecord[], editingId?: string): ValidationErrors {
@@ -2329,11 +2556,13 @@ export async function receivePurchaseOrder(
   poId: string,
   input: ReceivePurchaseOrderInput,
 ): Promise<{ ok: true; purchaseOrder: PurchaseOrderEntry } | { ok: false; errors: ValidationErrors }> {
-  const [poRows, lines, skus, logs] = await Promise.all([
+  const [poRows, lines, skus, logs, orderRows, orderLineRows] = await Promise.all([
     readPurchaseOrderRows(),
     readPurchaseOrderLines(),
     readSkuRows(),
     readInventoryLogs(),
+    readOrderRows(),
+    readOrderLineRows(),
   ])
 
   const po = poRows.find((row) => row.poId === poId)
@@ -2432,11 +2661,19 @@ export async function receivePurchaseOrder(
     }
   })
 
+  const reprocessResult = reprocessRuntimeOrderAllocations({
+    orders: orderRows,
+    orderLines: orderLineRows,
+    skus: nextSkus,
+    now,
+  })
+
   await Promise.all([
     writePurchaseOrderRows(nextPoRows),
     writePurchaseOrderLines(nextLines),
-    writeSkuRows(nextSkus),
+    writeSkuRows(reprocessResult.nextSkus),
     writeInventoryLogs(nextLogs),
+    writeOrderLineRows(reprocessResult.nextOrderLines),
   ])
 
   const receivedUnits = input.lines.reduce((sum, line) => sum + line.receiveQty, 0)
@@ -2452,6 +2689,16 @@ export async function receivePurchaseOrder(
     location: receiveLocations.join(", "),
     createdAt: now,
   })
+
+  if (reprocessResult.changes.length > 0) {
+    await appendOrderReprocessHistoryEntries({
+      orders: orderRows,
+      changes: reprocessResult.changes,
+      changedBy: input.changedBy,
+      createdAt: now,
+      reason: "po_receive",
+    })
+  }
 
   const updated = await getPurchaseOrderById(poId)
   if (!updated) {
