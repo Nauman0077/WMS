@@ -88,7 +88,34 @@ export const CSV_FILES = {
   },
   skuLocations: {
     path: path.join(DATA_DIR, "sku_locations.csv"),
-    headers: ["assignment_id", "sku_id", "warehouse", "location", "quantity", "created_at", "updated_at"],
+    headers: [
+      "assignment_id",
+      "sku_id",
+      "warehouse",
+      "location_id",
+      "location",
+      "quantity",
+      "created_at",
+      "updated_at",
+    ],
+  },
+  locations: {
+    path: path.join(DATA_DIR, "locations.csv"),
+    headers: [
+      "location_id",
+      "warehouse",
+      "location_code",
+      "location_name",
+      "location_type",
+      "is_active",
+      "is_pickable",
+      "is_receivable",
+      "is_sellable",
+      "sort_order",
+      "notes",
+      "created_at",
+      "updated_at",
+    ],
   },
   vendors: {
     path: path.join(DATA_DIR, "vendors.csv"),
@@ -276,6 +303,7 @@ async function initializeStore(): Promise<void> {
   await seedAdminUser()
   await seedSkuAndVendors()
   await seedOrders()
+  await seedLocationsAndBalances()
 }
 
 function hashPassword(password: string, salt: string): string {
@@ -496,5 +524,132 @@ async function seedOrders(): Promise<void> {
       changed_by: "seed",
       created_at: now,
     })
+  }
+}
+
+const DEFAULT_LOCATION_TEMPLATES = [
+  {
+    locationCode: "RECEIVING",
+    locationName: "Receiving",
+    locationType: "receiving",
+    isPickable: false,
+    isReceivable: true,
+    isSellable: true,
+    sortOrder: 10,
+    notes: "Default inbound receiving area",
+  },
+  {
+    locationCode: "PICK-01",
+    locationName: "Pick 01",
+    locationType: "pick",
+    isPickable: true,
+    isReceivable: false,
+    isSellable: true,
+    sortOrder: 20,
+    notes: "Default primary pick face",
+  },
+  {
+    locationCode: "BULK-01",
+    locationName: "Bulk 01",
+    locationType: "bulk",
+    isPickable: false,
+    isReceivable: false,
+    isSellable: true,
+    sortOrder: 30,
+    notes: "Default bulk storage",
+  },
+  {
+    locationCode: "RETURNS-01",
+    locationName: "Returns 01",
+    locationType: "returns",
+    isPickable: false,
+    isReceivable: false,
+    isSellable: false,
+    sortOrder: 40,
+    notes: "Default returns holding area",
+  },
+  {
+    locationCode: "QUARANTINE-01",
+    locationName: "Quarantine 01",
+    locationType: "quarantine",
+    isPickable: false,
+    isReceivable: false,
+    isSellable: false,
+    sortOrder: 50,
+    notes: "Default non-sellable quarantine area",
+  },
+] as const
+
+async function seedLocationsAndBalances(): Promise<void> {
+  const [initialLocationRows, skuRows, skuLocationRows] = await Promise.all([
+    readCsvRows(CSV_FILES.locations.path, [...CSV_FILES.locations.headers]),
+    readCsvRows(CSV_FILES.skus.path, [...CSV_FILES.skus.headers]),
+    readCsvRows(CSV_FILES.skuLocations.path, [...CSV_FILES.skuLocations.headers]),
+  ])
+
+  const now = new Date().toISOString()
+  const warehouses = Array.from(new Set(skuRows.map((row) => row.warehouse).filter(Boolean)))
+  const locationKeys = new Set(initialLocationRows.map((row) => `${row.warehouse}::${row.location_code}`))
+
+  for (const warehouse of warehouses) {
+    for (const template of DEFAULT_LOCATION_TEMPLATES) {
+      const key = `${warehouse}::${template.locationCode}`
+      if (locationKeys.has(key)) {
+        continue
+      }
+
+      await appendCsvRow(CSV_FILES.locations.path, [...CSV_FILES.locations.headers], {
+        location_id: randomUUID(),
+        warehouse,
+        location_code: template.locationCode,
+        location_name: template.locationName,
+        location_type: template.locationType,
+        is_active: fromBool(true),
+        is_pickable: fromBool(template.isPickable),
+        is_receivable: fromBool(template.isReceivable),
+        is_sellable: fromBool(template.isSellable),
+        sort_order: fromNumber(template.sortOrder),
+        notes: template.notes,
+        created_at: now,
+        updated_at: now,
+      })
+      locationKeys.add(key)
+    }
+  }
+
+  const locationRows = await readCsvRows(CSV_FILES.locations.path, [...CSV_FILES.locations.headers])
+
+  const existingBalanceKeys = new Set(
+    skuLocationRows
+      .filter((row) => row.sku_id && row.warehouse && row.location)
+      .map((row) => `${row.sku_id}::${row.warehouse}::${row.location}`),
+  )
+
+  for (const sku of skuRows) {
+    const quantity = Number(sku.on_hand || 0)
+    if (quantity <= 0) {
+      continue
+    }
+
+    const balanceKey = `${sku.sku_id}::${sku.warehouse}::BULK-01`
+    if (existingBalanceKeys.has(balanceKey)) {
+      continue
+    }
+
+    const bulkLocation = locationRows.find(
+      (row) => row.warehouse === sku.warehouse && row.location_code === "BULK-01",
+    )
+
+    await appendCsvRow(CSV_FILES.skuLocations.path, [...CSV_FILES.skuLocations.headers], {
+      assignment_id: randomUUID(),
+      sku_id: sku.sku_id,
+      warehouse: sku.warehouse,
+      location_id: bulkLocation?.location_id || "",
+      location: "BULK-01",
+      quantity: fromNumber(quantity),
+      created_at: now,
+      updated_at: now,
+    })
+    existingBalanceKeys.add(balanceKey)
   }
 }

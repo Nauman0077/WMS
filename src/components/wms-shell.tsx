@@ -15,6 +15,7 @@ const TOP_LINKS = [
   { key: "orders", label: "Orders", href: "/orders" },
   { key: "returns", label: "Returns", href: "/returns" },
   { key: "inventory", label: "Inventory", href: "/products" },
+  { key: "locations", label: "Locations", href: "/locations" },
   { key: "purchase-orders", label: "Purchase Orders", href: "/purchase-orders" },
   { key: "reports", label: "Reports", href: "/reports" },
   { key: "shipping", label: "Shipping", href: "/shipping" },

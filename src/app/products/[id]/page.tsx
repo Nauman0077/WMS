@@ -216,9 +216,6 @@ export default async function ProductDetailsPage({ params }: ProductDetailsPageP
           <section className="panel spaced-panel">
             <div className="panel-title with-action">
               <span>Bins</span>
-              <button className="ghost-button" type="button">
-                + Add Bin
-              </button>
             </div>
             <div className="table-wrap">
               <table className="data-table">
@@ -235,9 +232,24 @@ export default async function ProductDetailsPage({ params }: ProductDetailsPageP
                   </tr>
                 </thead>
                 <tbody>
-                  <tr>
-                    <td colSpan={8}>No data available in table</td>
-                  </tr>
+                  {sku.locationBalances.length === 0 ? (
+                    <tr>
+                      <td colSpan={8}>No location balances found for this SKU.</td>
+                    </tr>
+                  ) : (
+                    sku.locationBalances.map((balance) => (
+                      <tr key={balance.assignmentId}>
+                        <td>{balance.warehouse}</td>
+                        <td>{balance.locationCode}</td>
+                        <td>{balance.quantity}</td>
+                        <td>{balance.isPickable ? "Yes" : "No"}</td>
+                        <td>{balance.isSellable ? "Yes" : "No"}</td>
+                        <td>{sku.uom.componentSku || "-"}</td>
+                        <td>{balance.locationType}</td>
+                        <td>-</td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>

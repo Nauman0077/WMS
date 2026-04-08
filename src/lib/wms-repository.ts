@@ -11,6 +11,7 @@ import {
 import { CSV_FILES, ensureDataStore } from "@/lib/data-store"
 import {
   BulkPatchSkusInput,
+  CreateLocationInput,
   CreateOrderInput,
   CreatePurchaseOrderInput,
   CreateSkuInput,
@@ -18,9 +19,11 @@ import {
   CreateVendorSkuInput,
   InventoryLogEntry,
   LoginInput,
+  LocationRecord,
   OrderHistoryEntry,
   OrderLineItem,
   OrderRecord,
+  PatchLocationInput,
   PatchOrderInput,
   PatchPurchaseOrderInput,
   PatchSkuInput,
@@ -31,6 +34,7 @@ import {
   PurchaseOrderSummaryRow,
   ReceivePurchaseOrderInput,
   SessionRecord,
+  SkuLocationBalance,
   SkuRecord,
   UserRecord,
   ValidationErrors,
@@ -124,6 +128,59 @@ function deriveVendorCode(value: string): string {
   }
   return `VENDOR-${Math.floor(Math.random() * 9000) + 1000}`
 }
+
+const DEFAULT_LOCATION_TEMPLATES = [
+  {
+    locationCode: "RECEIVING",
+    locationName: "Receiving",
+    locationType: "receiving",
+    isPickable: false,
+    isReceivable: true,
+    isSellable: true,
+    sortOrder: 10,
+    notes: "Default inbound receiving area",
+  },
+  {
+    locationCode: "PICK-01",
+    locationName: "Pick 01",
+    locationType: "pick",
+    isPickable: true,
+    isReceivable: false,
+    isSellable: true,
+    sortOrder: 20,
+    notes: "Default primary pick face",
+  },
+  {
+    locationCode: "BULK-01",
+    locationName: "Bulk 01",
+    locationType: "bulk",
+    isPickable: false,
+    isReceivable: false,
+    isSellable: true,
+    sortOrder: 30,
+    notes: "Default bulk storage",
+  },
+  {
+    locationCode: "RETURNS-01",
+    locationName: "Returns 01",
+    locationType: "returns",
+    isPickable: false,
+    isReceivable: false,
+    isSellable: false,
+    sortOrder: 40,
+    notes: "Default returns holding area",
+  },
+  {
+    locationCode: "QUARANTINE-01",
+    locationName: "Quarantine 01",
+    locationType: "quarantine",
+    isPickable: false,
+    isReceivable: false,
+    isSellable: false,
+    sortOrder: 50,
+    notes: "Default non-sellable quarantine area",
+  },
+] as const
 
 async function readUsers(): Promise<UserRecord[]> {
   await ensureDataStore()
@@ -299,8 +356,25 @@ interface SkuLocationAssignmentRow {
   assignmentId: string
   skuId: string
   warehouse: string
-  location: string
+  locationId: string
+  locationCode: string
   quantity: number
+  createdAt: string
+  updatedAt: string
+}
+
+interface LocationRow {
+  locationId: string
+  warehouse: string
+  locationCode: string
+  locationName: string
+  locationType: string
+  isActive: boolean
+  isPickable: boolean
+  isReceivable: boolean
+  isSellable: boolean
+  sortOrder: number
+  notes: string
   createdAt: string
   updatedAt: string
 }
@@ -504,11 +578,155 @@ async function readSkuLocationRows(): Promise<SkuLocationAssignmentRow[]> {
     assignmentId: row.assignment_id,
     skuId: row.sku_id,
     warehouse: row.warehouse,
-    location: row.location,
+    locationId: row.location_id,
+    locationCode: row.location,
     quantity: toNumber(row.quantity),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   }))
+}
+
+async function writeSkuLocationRows(rows: SkuLocationAssignmentRow[]): Promise<void> {
+  await writeCsvRows(
+    CSV_FILES.skuLocations.path,
+    [...CSV_FILES.skuLocations.headers],
+    rows.map((row) => ({
+      assignment_id: row.assignmentId,
+      sku_id: row.skuId,
+      warehouse: row.warehouse,
+      location_id: row.locationId,
+      location: row.locationCode,
+      quantity: fromNumber(row.quantity),
+      created_at: row.createdAt,
+      updated_at: row.updatedAt,
+    })),
+  )
+}
+
+async function readLocationRows(): Promise<LocationRow[]> {
+  const rows = await readCsvRows(CSV_FILES.locations.path, [...CSV_FILES.locations.headers])
+  return rows.map((row) => ({
+    locationId: row.location_id,
+    warehouse: row.warehouse,
+    locationCode: row.location_code,
+    locationName: row.location_name,
+    locationType: row.location_type,
+    isActive: toBool(row.is_active),
+    isPickable: toBool(row.is_pickable),
+    isReceivable: toBool(row.is_receivable),
+    isSellable: toBool(row.is_sellable),
+    sortOrder: toNumber(row.sort_order),
+    notes: row.notes,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  }))
+}
+
+async function writeLocationRows(rows: LocationRow[]): Promise<void> {
+  await writeCsvRows(
+    CSV_FILES.locations.path,
+    [...CSV_FILES.locations.headers],
+    rows.map((row) => ({
+      location_id: row.locationId,
+      warehouse: row.warehouse,
+      location_code: row.locationCode,
+      location_name: row.locationName,
+      location_type: row.locationType,
+      is_active: fromBool(row.isActive),
+      is_pickable: fromBool(row.isPickable),
+      is_receivable: fromBool(row.isReceivable),
+      is_sellable: fromBool(row.isSellable),
+      sort_order: fromNumber(row.sortOrder),
+      notes: row.notes,
+      created_at: row.createdAt,
+      updated_at: row.updatedAt,
+    })),
+  )
+}
+
+async function ensureDefaultLocationsForWarehouses(warehouses: string[]): Promise<void> {
+  const locationRows = await readLocationRows()
+  const locationKeys = new Set(locationRows.map((row) => `${row.warehouse}::${row.locationCode}`))
+  const now = nowIso()
+
+  const rowsToAdd = warehouses
+    .map((warehouse) => normalizeText(warehouse))
+    .filter(Boolean)
+    .flatMap((warehouse) =>
+      DEFAULT_LOCATION_TEMPLATES.filter((template) => !locationKeys.has(`${warehouse}::${template.locationCode}`)).map(
+        (template) => ({
+          locationId: randomUUID(),
+          warehouse,
+          locationCode: template.locationCode,
+          locationName: template.locationName,
+          locationType: template.locationType,
+          isActive: true,
+          isPickable: template.isPickable,
+          isReceivable: template.isReceivable,
+          isSellable: template.isSellable,
+          sortOrder: template.sortOrder,
+          notes: template.notes,
+          createdAt: now,
+          updatedAt: now,
+        }),
+      ),
+    )
+
+  if (rowsToAdd.length === 0) {
+    return
+  }
+
+  await writeLocationRows([...locationRows, ...rowsToAdd])
+}
+
+function validateLocationInput(input: CreateLocationInput, existing: LocationRow[], editingId?: string): ValidationErrors {
+  const errors: ValidationErrors = {}
+  const warehouse = normalizeText(input.warehouse)
+  const locationCode = normalizeText(input.locationCode).toUpperCase()
+
+  if (!warehouse) {
+    errors.warehouse = "Warehouse is required."
+  }
+  if (!locationCode) {
+    errors.locationCode = "Location code is required."
+  }
+  if (!normalizeText(input.locationName)) {
+    errors.locationName = "Location name is required."
+  }
+
+  const duplicate = existing.some(
+    (row) =>
+      row.locationId !== editingId &&
+      row.warehouse.trim().toLowerCase() === warehouse.toLowerCase() &&
+      row.locationCode.trim().toLowerCase() === locationCode.toLowerCase(),
+  )
+
+  if (duplicate) {
+    errors.locationCode = "Location code already exists in this warehouse."
+  }
+
+  return errors
+}
+
+function resolveWarehouseLocation(
+  warehouse: string,
+  locationRows: LocationRow[],
+  requestedLocation?: string,
+): LocationRow | undefined {
+  const activeRows = locationRows.filter((row) => row.warehouse === warehouse && row.isActive)
+  const normalizedRequested = normalizeText(requestedLocation ?? "")
+
+  if (normalizedRequested) {
+    return activeRows.find(
+      (row) => row.locationId === normalizedRequested || row.locationCode.toLowerCase() === normalizedRequested.toLowerCase(),
+    )
+  }
+
+  return (
+    activeRows.find((row) => row.locationCode === "RECEIVING") ||
+    activeRows.find((row) => row.isReceivable) ||
+    activeRows[0]
+  )
 }
 
 async function readVendorRows(): Promise<VendorRecord[]> {
@@ -951,6 +1169,152 @@ function mapPurchaseOrderSummary(
   }
 }
 
+function mapLocationRecord(row: LocationRow): LocationRecord {
+  return {
+    locationId: row.locationId,
+    warehouse: row.warehouse,
+    locationCode: row.locationCode,
+    locationName: row.locationName,
+    locationType: row.locationType,
+    isActive: row.isActive,
+    isPickable: row.isPickable,
+    isReceivable: row.isReceivable,
+    isSellable: row.isSellable,
+    sortOrder: row.sortOrder,
+    notes: row.notes,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+  }
+}
+
+function mapSkuLocationBalance(
+  row: SkuLocationAssignmentRow,
+  locationById: Map<string, LocationRow>,
+  locationByCode: Map<string, LocationRow>,
+): SkuLocationBalance {
+  const location =
+    locationById.get(row.locationId) ?? locationByCode.get(`${row.warehouse}::${row.locationCode}`)
+
+  return {
+    assignmentId: row.assignmentId,
+    skuId: row.skuId,
+    warehouse: row.warehouse,
+    locationId: location?.locationId ?? row.locationId,
+    locationCode: location?.locationCode ?? row.locationCode,
+    locationName: location?.locationName ?? row.locationCode,
+    locationType: location?.locationType ?? "storage",
+    isPickable: location?.isPickable ?? false,
+    isSellable: location?.isSellable ?? true,
+    quantity: row.quantity,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+  }
+}
+
+function applyLocationBalancesToSkuRows(
+  skuRows: SkuRow[],
+  skuLocationRows: SkuLocationAssignmentRow[],
+  locationRows: LocationRow[],
+  now: string,
+): { nextSkuRows: SkuRow[]; changed: boolean } {
+  const locationById = new Map(locationRows.map((row) => [row.locationId, row]))
+  const locationByCode = new Map(locationRows.map((row) => [`${row.warehouse}::${row.locationCode}`, row]))
+  const balancesBySku = new Map<string, SkuLocationAssignmentRow[]>()
+  skuLocationRows.forEach((row) => {
+    const bucket = balancesBySku.get(row.skuId) ?? []
+    bucket.push(row)
+    balancesBySku.set(row.skuId, bucket)
+  })
+
+  let changed = false
+  const nextSkuRows = skuRows.map((row) => {
+    const balances = balancesBySku.get(row.skuId) ?? []
+    const sellableOnHand = balances.reduce((sum, balance) => {
+      const location = locationById.get(balance.locationId) ?? locationByCode.get(`${balance.warehouse}::${balance.locationCode}`)
+      if (!location?.isActive || !location.isSellable) {
+        return sum
+      }
+      return sum + balance.quantity
+    }, 0)
+    const nonSellableTotal = balances.reduce((sum, balance) => {
+      const location = locationById.get(balance.locationId) ?? locationByCode.get(`${balance.warehouse}::${balance.locationCode}`)
+      if (!location?.isActive || location.isSellable) {
+        return sum
+      }
+      return sum + balance.quantity
+    }, 0)
+    const available = Math.max(0, sellableOnHand - row.allocated - row.reserved)
+
+    if (row.onHand === sellableOnHand && row.nonSellableTotal === nonSellableTotal && row.available === available) {
+      return row
+    }
+
+    changed = true
+    return {
+      ...row,
+      onHand: sellableOnHand,
+      nonSellableTotal,
+      available,
+      updatedAt: now,
+    }
+  })
+
+  return { nextSkuRows, changed }
+}
+
+async function syncSkuInventoryFromLocations(): Promise<void> {
+  await ensureDataStore()
+
+  const [skuRows, skuLocationRows, locationRows] = await Promise.all([
+    readSkuRows(),
+    readSkuLocationRows(),
+    readLocationRows(),
+  ])
+
+  if (locationRows.length === 0) {
+    return
+  }
+
+  const locationById = new Map(locationRows.map((row) => [row.locationId, row]))
+  const locationByCode = new Map(locationRows.map((row) => [`${row.warehouse}::${row.locationCode}`, row]))
+  const now = nowIso()
+  let locationBalanceChanged = false
+
+  const nextBalances = skuLocationRows.map((row) => {
+    const location =
+      locationById.get(row.locationId) ?? locationByCode.get(`${row.warehouse}::${row.locationCode}`)
+    if (!location) {
+      return row
+    }
+
+    if (row.locationId === location.locationId && row.locationCode === location.locationCode) {
+      return row
+    }
+
+    locationBalanceChanged = true
+    return {
+      ...row,
+      locationId: location.locationId,
+      locationCode: location.locationCode,
+      updatedAt: now,
+    }
+  })
+
+  const { nextSkuRows, changed: skuChanged } = applyLocationBalancesToSkuRows(skuRows, nextBalances, locationRows, now)
+
+  const writes: Promise<void>[] = []
+  if (locationBalanceChanged) {
+    writes.push(writeSkuLocationRows(nextBalances))
+  }
+  if (skuChanged) {
+    writes.push(writeSkuRows(nextSkuRows))
+  }
+
+  if (writes.length > 0) {
+    await Promise.all(writes)
+  }
+}
+
 function mapSkuRecord(
   sku: SkuRow,
   notes: SkuNoteRow | undefined,
@@ -958,6 +1322,7 @@ function mapSkuRecord(
   vendors: VendorRecord[],
   purchaseOrders: PurchaseOrderRow[],
   poLines: PurchaseOrderLine[],
+  skuLocationBalances: SkuLocationBalance[],
   inventoryLogs: InventoryLogRow[],
 ): SkuRecord {
   const skuMappings = vendorMappings.filter((mapping) => mapping.skuId === sku.skuId)
@@ -1047,6 +1412,7 @@ function mapSkuRecord(
     },
     vendorAssignments,
     purchaseOrders: purchaseOrderSummary,
+    locationBalances: skuLocationBalances,
     inventoryLog: skuLogs,
     createdAt: sku.createdAt,
     updatedAt: sku.updatedAt,
@@ -1180,6 +1546,7 @@ export async function revokeSession(token: string): Promise<void> {
 }
 
 export async function getWarehouseOptions(): Promise<string[]> {
+  await ensureDefaultLocationsForWarehouses(DEFAULT_WAREHOUSES)
   const skus = await readSkuRows()
   const warehouses = new Set(DEFAULT_WAREHOUSES)
   skus.forEach((sku) => {
@@ -1190,19 +1557,184 @@ export async function getWarehouseOptions(): Promise<string[]> {
   return Array.from(warehouses)
 }
 
+export async function listLocations(): Promise<LocationRecord[]> {
+  const warehouses = await getWarehouseOptions()
+  await ensureDefaultLocationsForWarehouses(warehouses)
+  const rows = await readLocationRows()
+  return rows
+    .sort((a, b) => {
+      if (a.warehouse !== b.warehouse) {
+        return a.warehouse.localeCompare(b.warehouse)
+      }
+      if (a.sortOrder !== b.sortOrder) {
+        return a.sortOrder - b.sortOrder
+      }
+      return a.locationCode.localeCompare(b.locationCode)
+    })
+    .map(mapLocationRecord)
+}
+
+export async function getLocationById(locationId: string): Promise<LocationRecord | undefined> {
+  const rows = await listLocations()
+  return rows.find((row) => row.locationId === locationId)
+}
+
+export async function listWarehouseLocations(warehouse: string): Promise<LocationRecord[]> {
+  const rows = await listLocations()
+  return rows.filter((row) => row.warehouse === warehouse && row.isActive)
+}
+
+export async function listLocationBalancesForSku(skuId: string): Promise<SkuLocationBalance[]> {
+  await ensureDataStore()
+  const [locationRows, balanceRows] = await Promise.all([readLocationRows(), readSkuLocationRows()])
+  const locationById = new Map(locationRows.map((row) => [row.locationId, row]))
+  const locationByCode = new Map(locationRows.map((row) => [`${row.warehouse}::${row.locationCode}`, row]))
+
+  return balanceRows
+    .filter((row) => row.skuId === skuId)
+    .map((row) => mapSkuLocationBalance(row, locationById, locationByCode))
+    .sort((a, b) => {
+      if (a.warehouse !== b.warehouse) {
+        return a.warehouse.localeCompare(b.warehouse)
+      }
+      return a.locationCode.localeCompare(b.locationCode)
+    })
+}
+
+export async function listLocationBalancesForLocation(locationId: string): Promise<(SkuLocationBalance & { skuName: string; skuCode: string })[]> {
+  await ensureDataStore()
+  const [locationRows, balanceRows, skuRows] = await Promise.all([readLocationRows(), readSkuLocationRows(), readSkuRows()])
+  const targetLocation = locationRows.find((row) => row.locationId === locationId)
+  if (!targetLocation) {
+    return []
+  }
+  const locationById = new Map(locationRows.map((row) => [row.locationId, row]))
+  const locationByCode = new Map(locationRows.map((row) => [`${row.warehouse}::${row.locationCode}`, row]))
+  const skuById = new Map(skuRows.map((row) => [row.skuId, row]))
+
+  return balanceRows
+    .filter(
+      (row) =>
+        row.locationId === locationId ||
+        (row.warehouse === targetLocation.warehouse && row.locationCode === targetLocation.locationCode),
+    )
+    .map((row) => {
+      const balance = mapSkuLocationBalance(row, locationById, locationByCode)
+      const sku = skuById.get(row.skuId)
+      return {
+        ...balance,
+        skuName: sku?.name ?? row.skuId,
+        skuCode: sku?.skuCode ?? row.skuId,
+      }
+    })
+    .sort((a, b) => a.skuCode.localeCompare(b.skuCode))
+}
+
+export async function createLocation(
+  input: CreateLocationInput,
+): Promise<{ ok: true; location: LocationRecord } | { ok: false; errors: ValidationErrors }> {
+  await ensureDefaultLocationsForWarehouses([input.warehouse])
+  const rows = await readLocationRows()
+  const errors = validateLocationInput(input, rows)
+  if (Object.keys(errors).length > 0) {
+    return { ok: false, errors }
+  }
+
+  const now = nowIso()
+  const row: LocationRow = {
+    locationId: randomUUID(),
+    warehouse: normalizeText(input.warehouse),
+    locationCode: normalizeText(input.locationCode).toUpperCase(),
+    locationName: normalizeText(input.locationName),
+    locationType: normalizeText(input.locationType) || "storage",
+    isActive: input.isActive ?? true,
+    isPickable: input.isPickable ?? false,
+    isReceivable: input.isReceivable ?? false,
+    isSellable: input.isSellable ?? true,
+    sortOrder: Number(input.sortOrder) || 100,
+    notes: normalizeText(input.notes ?? ""),
+    createdAt: now,
+    updatedAt: now,
+  }
+
+  await writeLocationRows([...rows, row])
+  await syncSkuInventoryFromLocations()
+  return { ok: true, location: mapLocationRecord(row) }
+}
+
+export async function patchLocation(
+  locationId: string,
+  input: PatchLocationInput,
+): Promise<LocationRecord | undefined | { ok: false; errors: ValidationErrors }> {
+  const rows = await readLocationRows()
+  const target = rows.find((row) => row.locationId === locationId)
+  if (!target) {
+    return undefined
+  }
+
+  const nextInput: CreateLocationInput = {
+    warehouse: input.warehouse ?? target.warehouse,
+    locationCode: input.locationCode ?? target.locationCode,
+    locationName: input.locationName ?? target.locationName,
+    locationType: input.locationType ?? target.locationType,
+    isActive: input.isActive ?? target.isActive,
+    isPickable: input.isPickable ?? target.isPickable,
+    isReceivable: input.isReceivable ?? target.isReceivable,
+    isSellable: input.isSellable ?? target.isSellable,
+    sortOrder: input.sortOrder ?? target.sortOrder,
+    notes: input.notes ?? target.notes,
+  }
+
+  const errors = validateLocationInput(nextInput, rows, locationId)
+  if (Object.keys(errors).length > 0) {
+    return { ok: false, errors }
+  }
+
+  const updatedAt = nowIso()
+  const merged: LocationRow = {
+    ...target,
+    warehouse: normalizeText(nextInput.warehouse),
+    locationCode: normalizeText(nextInput.locationCode).toUpperCase(),
+    locationName: normalizeText(nextInput.locationName),
+    locationType: normalizeText(nextInput.locationType) || target.locationType,
+    isActive: nextInput.isActive ?? target.isActive,
+    isPickable: nextInput.isPickable ?? target.isPickable,
+    isReceivable: nextInput.isReceivable ?? target.isReceivable,
+    isSellable: nextInput.isSellable ?? target.isSellable,
+    sortOrder: Number(nextInput.sortOrder) || target.sortOrder,
+    notes: normalizeText(nextInput.notes ?? target.notes),
+    updatedAt,
+  }
+
+  await writeLocationRows(rows.map((row) => (row.locationId === locationId ? merged : row)))
+  await syncSkuInventoryFromLocations()
+  return mapLocationRecord(merged)
+}
+
 export async function listSkus(): Promise<SkuRecord[]> {
   await reconcileOrderAllocationStateIfNeeded()
-  const [skuRows, noteRows, vendors, mappings, purchaseOrders, poLines, logs] = await Promise.all([
+  await syncSkuInventoryFromLocations()
+  const [skuRows, noteRows, vendors, mappings, purchaseOrders, poLines, skuLocationRows, locationRows, logs] = await Promise.all([
     readSkuRows(),
     readSkuNoteRows(),
     readVendorRows(),
     readVendorMappings(),
     readPurchaseOrderRows(),
     readPurchaseOrderLines(),
+    readSkuLocationRows(),
+    readLocationRows(),
     readInventoryLogs(),
   ])
 
   const noteBySku = new Map(noteRows.map((note) => [note.skuId, note]))
+  const locationById = new Map(locationRows.map((row) => [row.locationId, row]))
+  const locationByCode = new Map(locationRows.map((row) => [`${row.warehouse}::${row.locationCode}`, row]))
+  const balancesBySku = new Map<string, SkuLocationBalance[]>()
+  skuLocationRows.forEach((row) => {
+    const bucket = balancesBySku.get(row.skuId) ?? []
+    bucket.push(mapSkuLocationBalance(row, locationById, locationByCode))
+    balancesBySku.set(row.skuId, bucket)
+  })
 
   return skuRows
     .map((row) =>
@@ -1213,6 +1745,7 @@ export async function listSkus(): Promise<SkuRecord[]> {
         vendors,
         purchaseOrders,
         poLines,
+        (balancesBySku.get(row.skuId) ?? []).sort((a, b) => a.locationCode.localeCompare(b.locationCode)),
         logs,
       ),
     )
@@ -1227,6 +1760,7 @@ export async function getSkuById(id: string): Promise<SkuRecord | undefined> {
 export async function createSku(
   input: CreateSkuInput,
 ): Promise<{ ok: true; sku: SkuRecord } | { ok: false; errors: ValidationErrors }> {
+  await ensureDefaultLocationsForWarehouses([input.warehouse])
   const [skuRows, noteRows, vendors, mappings] = await Promise.all([
     readSkuRows(),
     readSkuNoteRows(),
@@ -2556,13 +3090,16 @@ export async function receivePurchaseOrder(
   poId: string,
   input: ReceivePurchaseOrderInput,
 ): Promise<{ ok: true; purchaseOrder: PurchaseOrderEntry } | { ok: false; errors: ValidationErrors }> {
-  const [poRows, lines, skus, logs, orderRows, orderLineRows] = await Promise.all([
+  await syncSkuInventoryFromLocations()
+  const [poRows, lines, skus, logs, orderRows, orderLineRows, skuLocationRows, locationRows] = await Promise.all([
     readPurchaseOrderRows(),
     readPurchaseOrderLines(),
     readSkuRows(),
     readInventoryLogs(),
     readOrderRows(),
     readOrderLineRows(),
+    readSkuLocationRows(),
+    readLocationRows(),
   ])
 
   const po = poRows.find((row) => row.poId === poId)
@@ -2587,6 +3124,11 @@ export async function receivePurchaseOrder(
     const remaining = line.orderedQty - line.receivedQty
     if (item.receiveQty > remaining) {
       errors[`line_qty_${index}`] = `Receive quantity exceeds remaining (${remaining}).`
+    }
+
+    const location = resolveWarehouseLocation(po.warehouse, locationRows, item.location ?? input.location)
+    if (!location) {
+      errors[`line_location_${index}`] = "Valid receiving location is required for this warehouse."
     }
   })
 
@@ -2613,6 +3155,7 @@ export async function receivePurchaseOrder(
   })
 
   const nextSkus = [...skus]
+  const nextSkuLocationRows = skuLocationRows.map((row) => ({ ...row }))
   const nextLogs = [...logs]
 
   input.lines.forEach((item) => {
@@ -2620,29 +3163,55 @@ export async function receivePurchaseOrder(
     if (!line) {
       return
     }
-    const receiveLocation = normalizeText(item.location ?? input.location ?? "Dummy Location") || "Dummy Location"
+    const location = resolveWarehouseLocation(po.warehouse, locationRows, item.location ?? input.location)
+    if (!location) {
+      return
+    }
     const sku = nextSkus.find((entry) => entry.skuId === line.skuId)
     if (!sku) {
       return
     }
+
     const oldOnHand = sku.onHand
-    const newOnHand = oldOnHand + item.receiveQty
-    sku.onHand = newOnHand
-    sku.available = sku.available + item.receiveQty
-    sku.updatedAt = now
+    const balance = nextSkuLocationRows.find(
+      (entry) => entry.skuId === line.skuId && entry.warehouse === po.warehouse && entry.locationId === location.locationId,
+    )
+
+    if (balance) {
+      balance.quantity += item.receiveQty
+      balance.updatedAt = now
+    } else {
+      nextSkuLocationRows.push({
+        assignmentId: randomUUID(),
+        skuId: line.skuId,
+        warehouse: po.warehouse,
+        locationId: location.locationId,
+        locationCode: location.locationCode,
+        quantity: item.receiveQty,
+        createdAt: now,
+        updatedAt: now,
+      })
+    }
+
+    const { nextSkuRows: recalculatedSkus } = applyLocationBalancesToSkuRows(nextSkus, nextSkuLocationRows, locationRows, now)
+    recalculatedSkus.forEach((entry, index) => {
+      nextSkus[index] = entry
+    })
+    const refreshedSku = nextSkus.find((entry) => entry.skuId === line.skuId)
+    const newOnHand = refreshedSku?.onHand ?? oldOnHand
 
     nextLogs.push({
       logId: randomUUID(),
       skuId: sku.skuId,
       date: now,
       warehouse: po.warehouse,
-      location: receiveLocation,
+      location: location.locationCode,
       changedBy: input.changedBy,
       oldOnHand,
       newOnHand,
       referenceType: "purchase_order",
       referenceId: po.poNumber,
-      note: `Received ${item.receiveQty} units from ${po.poNumber} at ${receiveLocation}`,
+      note: `Received ${item.receiveQty} units from ${po.poNumber} at ${location.locationCode}`,
     })
   })
 
@@ -2672,13 +3241,18 @@ export async function receivePurchaseOrder(
     writePurchaseOrderRows(nextPoRows),
     writePurchaseOrderLines(nextLines),
     writeSkuRows(reprocessResult.nextSkus),
+    writeSkuLocationRows(nextSkuLocationRows),
     writeInventoryLogs(nextLogs),
     writeOrderLineRows(reprocessResult.nextOrderLines),
   ])
 
   const receivedUnits = input.lines.reduce((sum, line) => sum + line.receiveQty, 0)
   const receiveLocations = Array.from(
-    new Set(input.lines.map((line) => normalizeText(line.location ?? input.location ?? "Dummy Location") || "Dummy Location")),
+    new Set(
+      input.lines
+        .map((line) => resolveWarehouseLocation(po.warehouse, locationRows, line.location ?? input.location)?.locationCode)
+        .filter((value): value is string => Boolean(value)),
+    ),
   )
   await appendPurchaseOrderHistoryRow({
     historyId: randomUUID(),
@@ -2729,6 +3303,7 @@ export async function getDashboardStats(): Promise<{
   purchaseOrderStatusBreakdown: { label: string; value: number }[]
 }> {
   await reconcileOrderAllocationStateIfNeeded()
+  await syncSkuInventoryFromLocations()
   const [skus, vendors, pos, orders, orderLines] = await Promise.all([
     readSkuRows(),
     readVendorRows(),

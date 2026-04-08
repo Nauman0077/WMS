@@ -7,6 +7,37 @@ export interface InventorySummary {
   nonSellableTotal: number
 }
 
+export interface LocationRecord {
+  locationId: string
+  warehouse: string
+  locationCode: string
+  locationName: string
+  locationType: string
+  isActive: boolean
+  isPickable: boolean
+  isReceivable: boolean
+  isSellable: boolean
+  sortOrder: number
+  notes: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface SkuLocationBalance {
+  assignmentId: string
+  skuId: string
+  warehouse: string
+  locationId: string
+  locationCode: string
+  locationName: string
+  locationType: string
+  isPickable: boolean
+  isSellable: boolean
+  quantity: number
+  createdAt: string
+  updatedAt: string
+}
+
 export interface UserRecord {
   userId: string
   username: string
@@ -206,9 +237,23 @@ export interface SkuRecord {
   inventory: InventorySummary
   vendorAssignments: VendorAssignment[]
   purchaseOrders: PurchaseOrderSummaryRow[]
+  locationBalances: SkuLocationBalance[]
   inventoryLog: InventoryLogEntry[]
   createdAt: string
   updatedAt: string
+}
+
+export interface CreateLocationInput {
+  warehouse: string
+  locationCode: string
+  locationName: string
+  locationType: string
+  isActive?: boolean
+  isPickable?: boolean
+  isReceivable?: boolean
+  isSellable?: boolean
+  sortOrder?: number
+  notes?: string
 }
 
 export interface CreateSkuInput {
@@ -293,6 +338,8 @@ export interface PatchSkuInput {
   price?: number
   notes?: Partial<SkuNotes>
 }
+
+export type PatchLocationInput = Partial<CreateLocationInput>
 
 export interface BulkPatchSkusInput {
   skuIds: string[]

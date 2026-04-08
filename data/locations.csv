@@ -1,0 +1,6 @@
+location_id,warehouse,location_code,location_name,location_type,is_active,is_pickable,is_receivable,is_sellable,sort_order,notes,created_at,updated_at
+8a264906-92df-42ea-8d38-855ca1cc68e9,"Las Vegas, USA - Nysonian - All Brands / Primary",RECEIVING,Receiving,receiving,true,false,true,true,10,Default inbound receiving area,2026-04-05T14:57:38.488Z,2026-04-05T14:57:38.488Z
+08439cb7-d27f-4cb1-8440-c1a22dbaf680,"Las Vegas, USA - Nysonian - All Brands / Primary",PICK-01,Pick 01,pick,true,true,false,true,20,Default primary pick face,2026-04-05T14:57:38.488Z,2026-04-05T14:57:38.488Z
+4ae9dad9-9c95-4ae5-afb8-2edb9aea8425,"Las Vegas, USA - Nysonian - All Brands / Primary",BULK-01,Bulk 01,bulk,true,false,false,true,30,Default bulk storage,2026-04-05T14:57:38.488Z,2026-04-05T14:57:38.488Z
+67ff145b-3848-403d-a3c1-25238290f402,"Las Vegas, USA - Nysonian - All Brands / Primary",RETURNS-01,Returns 01,returns,true,false,false,false,40,Default returns holding area,2026-04-05T14:57:38.488Z,2026-04-05T14:57:38.488Z
+781440d5-bee2-46e2-bebe-4e6fb8930582,"Las Vegas, USA - Nysonian - All Brands / Primary",QUARANTINE-01,Quarantine 01,quarantine,true,false,false,false,50,Default non-sellable quarantine area,2026-04-05T14:57:38.488Z,2026-04-05T14:57:38.488Z
